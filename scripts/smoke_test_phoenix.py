@@ -41,7 +41,11 @@ def main() -> int:
 
     try:
         projects = client.projects.list()
-        names = [p.name for p in projects]
+        # Phoenix client may return dicts or objects depending on version.
+        names = [
+            (p.get("name") if isinstance(p, dict) else getattr(p, "name", str(p)))
+            for p in projects
+        ]
         print(f"\nProjects ({len(names)}): {names}")
         print("\n[OK] Phoenix connection works.")
         return 0
