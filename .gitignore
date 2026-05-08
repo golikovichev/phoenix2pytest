@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# phoenix2pytest project artifacts
+# ---------------------------------
+# Pytest output emitted by the synthesiser agent. Generated per run, not source.
+generated_tests/
+
+# Scratchpad scripts. Drafts live local until ported into src/ as real modules.
+scripts/*_draft.py
