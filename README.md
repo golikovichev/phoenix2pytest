@@ -19,7 +19,7 @@ Existing eval frameworks assume you know what to test. You write evals up front,
 | DeepEval / Opik / pytest-evals | spec → eval → run |
 | **phoenix2pytest** | **trace → failure → synthesised test** |
 
-Different mental model — closer to how traditional QA turns crash reports into repro tests.
+Different mental model: closer to how traditional QA turns crash reports into repro tests.
 
 ## Quickstart
 
