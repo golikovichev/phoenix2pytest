@@ -6,6 +6,7 @@ Prerequisites:
 Run:
     python scripts/smoke_test_phoenix.py
 """
+
 from __future__ import annotations
 
 import os
@@ -43,8 +44,7 @@ def main() -> int:
         projects = client.projects.list()
         # Phoenix client may return dicts or objects depending on version.
         names = [
-            (p.get("name") if isinstance(p, dict) else getattr(p, "name", str(p)))
-            for p in projects
+            (p.get("name") if isinstance(p, dict) else getattr(p, "name", str(p))) for p in projects
         ]
         print(f"\nProjects ({len(names)}): {names}")
         print("\n[OK] Phoenix connection works.")

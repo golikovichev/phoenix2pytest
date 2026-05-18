@@ -165,9 +165,7 @@ def test_call_tool_raises_on_error_response() -> None:
 def test_list_traces_passes_project_id_from_config() -> None:
     config = PhoenixMCPConfig(base_url="x", api_key="y", project="default-proj")
     client = PhoenixMCPClient(config)
-    client._proc = _FakeProc(
-        [{"jsonrpc": "2.0", "id": 1, "result": {"traces": []}}]
-    )
+    client._proc = _FakeProc([{"jsonrpc": "2.0", "id": 1, "result": {"traces": []}}])
     client.list_traces()
 
     sent = json.loads(client._proc.stdin._inbox[0])  # type: ignore[union-attr]
@@ -177,9 +175,7 @@ def test_list_traces_passes_project_id_from_config() -> None:
 def test_list_traces_explicit_project_overrides_config_default() -> None:
     config = PhoenixMCPConfig(base_url="x", api_key="y", project="default-proj")
     client = PhoenixMCPClient(config)
-    client._proc = _FakeProc(
-        [{"jsonrpc": "2.0", "id": 1, "result": {"traces": []}}]
-    )
+    client._proc = _FakeProc([{"jsonrpc": "2.0", "id": 1, "result": {"traces": []}}])
     client.list_traces(project_id="other-proj")
 
     sent = json.loads(client._proc.stdin._inbox[0])  # type: ignore[union-attr]
@@ -196,8 +192,11 @@ def test_recv_response_drops_server_notification_before_response() -> None:
     client = _client_with_fake(
         [
             # Server-initiated notification (no id, has method): must be dropped
-            {"jsonrpc": "2.0", "method": "notifications/message",
-             "params": {"level": "info", "data": "warming up"}},
+            {
+                "jsonrpc": "2.0",
+                "method": "notifications/message",
+                "params": {"level": "info", "data": "warming up"},
+            },
             # The real response
             {"jsonrpc": "2.0", "id": 1, "result": {"tools": ["dummy"]}},
         ]
@@ -300,6 +299,6 @@ def test_real_mcp_subprocess_lists_tools() -> None:
     assert tools, "Phoenix MCP server returned no tools"
     tool_names = {t["name"] for t in tools}
     expected_subset = {"list-projects", "list-traces", "get-trace", "get-spans"}
-    assert expected_subset.issubset(tool_names), (
-        f"missing expected tools: {expected_subset - tool_names}"
-    )
+    assert expected_subset.issubset(
+        tool_names
+    ), f"missing expected tools: {expected_subset - tool_names}"

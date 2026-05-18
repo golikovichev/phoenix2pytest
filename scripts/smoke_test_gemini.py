@@ -8,6 +8,7 @@ Prerequisites:
 Run:
     python scripts/smoke_test_gemini.py
 """
+
 from __future__ import annotations
 
 import os
@@ -41,9 +42,11 @@ def main() -> int:
 
     print(f"\nResponse: {response.text!r}")
     if response.usage_metadata:
-        print(f"Tokens:   prompt={response.usage_metadata.prompt_token_count}, "
-              f"output={response.usage_metadata.candidates_token_count}, "
-              f"total={response.usage_metadata.total_token_count}")
+        print(
+            f"Tokens:   prompt={response.usage_metadata.prompt_token_count}, "
+            f"output={response.usage_metadata.candidates_token_count}, "
+            f"total={response.usage_metadata.total_token_count}"
+        )
 
     return 0
 
