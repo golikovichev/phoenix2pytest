@@ -64,3 +64,6 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --strict-markers"
+markers = [
+    "integration: tests that exercise external services (Phoenix MCP server via npx). Skipped by default; require PHOENIX_HOST and PHOENIX_API_KEY env vars.",
+]

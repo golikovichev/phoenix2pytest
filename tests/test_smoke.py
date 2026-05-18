@@ -1,4 +1,4 @@
-"""Smoke test — package imports without error."""
+"""Smoke test: package imports without error."""
 import phoenix2pytest
 
 
