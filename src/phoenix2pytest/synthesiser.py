@@ -124,6 +124,29 @@ def build_user_message(trace: TraceData, details: FailureDetails) -> str:
     )
 
 
+def build_user_message_for_group(traces: list[TraceData], details: FailureDetails) -> str:
+    """Assemble the prompt for a group of traces that share one failure mode.
+
+    Asks the model to emit a single pytest module that parametrises the test
+    function over the user prompts in the group. The assertion strategy and
+    failure mode are identical across the group, only the inputs differ.
+    """
+    prompts_json = json.dumps([t.user_prompt for t in traces], ensure_ascii=False, indent=2)
+    return (
+        f"USER PROMPTS (multiple inputs that all trigger this failure):\n"
+        f"{prompts_json}\n\n"
+        f"FAILURE MODE: {details.failure_mode}\n"
+        f"EVIDENCE: {details.evidence}\n"
+        f"EXPECTED BEHAVIOR: {details.expected_behavior}\n"
+        f"ASSERTION STRATEGY: {details.assertion_strategy}\n"
+        f"STRINGS TO EXCLUDE: {json.dumps(details.key_strings_to_exclude or [])}\n"
+        f"PATTERNS REQUIRED: {json.dumps(details.key_patterns_required or [])}\n\n"
+        f"Emit a single pytest module with one @pytest.mark.parametrize "
+        f"function that covers ALL prompts above. The test signature should "
+        f"accept the prompt as a parameter. Output only Python code."
+    )
+
+
 _FENCE_OPEN = re.compile(r"^```(?:python)?\s*", re.MULTILINE)
 _FENCE_CLOSE = re.compile(r"\s*```\s*$", re.MULTILINE)
 
@@ -161,6 +184,56 @@ def synthesise(
 _SANITISE = re.compile(r"[^a-z0-9_]")
 
 
+def _failure_mode_slug(failure_mode: str) -> str:
+    """Lowercase + sanitise the failure mode into a filename-safe slug.
+
+    Any character outside ``[a-z0-9_]`` becomes an underscore. Returns
+    ``"unknown"`` when the input is empty or sanitises к an empty string.
+    """
+    return _SANITISE.sub("_", (failure_mode or "unknown").lower()) or "unknown"
+
+
+def synthesise_many(
+    items: list[tuple[TraceData, FailureDetails]],
+    client: GeminiClient,
+    *,
+    model: str = DEFAULT_MODEL,
+) -> dict[str, str]:
+    """Synthesise tests for many trace + details pairs grouped by failure mode.
+
+    Items that share the same failure_mode_slug are folded into a single group
+    and the model is asked to emit a parametrised pytest function covering
+    all of their user prompts. Items with a unique failure mode go through
+    the plain single-trace prompt.
+
+    Returns a mapping ``{failure_mode_slug: pytest_source}`` with one entry
+    per distinct failure mode. Insertion order follows first occurrence of
+    each failure mode in ``items``.
+    """
+    if not items:
+        return {}
+
+    # Group by slug, preserving insertion order and FailureDetails of the first
+    # trace seen for each group. We assume the extractor classified consistently.
+    groups: dict[str, tuple[list[TraceData], FailureDetails]] = {}
+    for trace, details in items:
+        slug = _failure_mode_slug(details.failure_mode)
+        if slug in groups:
+            groups[slug][0].append(trace)
+        else:
+            groups[slug] = ([trace], details)
+
+    output: dict[str, str] = {}
+    for slug, (traces, details) in groups.items():
+        if len(traces) == 1:
+            user_msg = build_user_message(traces[0], details)
+        else:
+            user_msg = build_user_message_for_group(traces, details)
+        raw = client.generate_text(model=model, system=SYSTEM_PROMPT, user=user_msg)
+        output[slug] = strip_markdown_fences(raw or "")
+    return output
+
+
 def write_test_file(failure_mode: str, code: str, target_dir: Path) -> Path:
     """Write the synthesised code to ``target_dir/test_<failure_mode>.py``.
 
@@ -169,7 +242,22 @@ def write_test_file(failure_mode: str, code: str, target_dir: Path) -> Path:
     underscore so the filename is import-safe.
     """
     target_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = _SANITISE.sub("_", (failure_mode or "unknown").lower()) or "unknown"
+    safe_name = _failure_mode_slug(failure_mode)
     target = target_dir / f"test_{safe_name}.py"
     target.write_text(code, encoding="utf-8")
     return target
+
+
+def write_test_files(codes: dict[str, str], target_dir: Path) -> list[Path]:
+    """Write each entry in ``codes`` to ``target_dir/test_<slug>.py``.
+
+    The slug is assumed to be pre-sanitised (typically from ``synthesise_many``
+    output). Returns the written paths in iteration order.
+    """
+    target_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    for slug, code in codes.items():
+        target = target_dir / f"test_{slug}.py"
+        target.write_text(code, encoding="utf-8")
+        paths.append(target)
+    return paths
