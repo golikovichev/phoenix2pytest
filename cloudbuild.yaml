@@ -1,0 +1,67 @@
+# Cloud Build pipeline for phoenix2pytest.
+# Builds the container, pushes to Artifact Registry, and deploys to Cloud Run
+# in europe-west2. Trigger from a local checkout with:
+#
+#   gcloud builds submit --config cloudbuild.yaml
+#
+# Substitutions can be overridden per environment:
+#   --substitutions=_REGION=us-central1,_SERVICE=phoenix2pytest-dev
+
+substitutions:
+  _REGION: europe-west2
+  _SERVICE: phoenix2pytest
+  _REPO: phoenix2pytest
+  _MEMORY: 1Gi
+  _CPU: "1"
+  _TIMEOUT: "300"
+  _MAX_INSTANCES: "3"
+
+steps:
+  # 1. Build the container image. Two tags so the immutable SHA is auditable
+  # and a moving `latest` makes local pulls easy.
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest"
+      - "."
+
+  # 2. Push both tags to Artifact Registry.
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}"
+
+  # 3. Deploy the SHA-tagged image to Cloud Run. `allow-unauthenticated` is on
+  # by design for the demo surface; tighten before any non-demo use.
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - "${_SERVICE}"
+      - "--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--allow-unauthenticated"
+      - "--memory=${_MEMORY}"
+      - "--cpu=${_CPU}"
+      - "--timeout=${_TIMEOUT}"
+      - "--max-instances=${_MAX_INSTANCES}"
+      - "--set-env-vars=PYTHONUNBUFFERED=1"
+
+images:
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA"
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+timeout: 1200s
