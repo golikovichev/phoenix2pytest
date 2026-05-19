@@ -188,7 +188,7 @@ def _failure_mode_slug(failure_mode: str) -> str:
     """Lowercase + sanitise the failure mode into a filename-safe slug.
 
     Any character outside ``[a-z0-9_]`` becomes an underscore. Returns
-    ``"unknown"`` when the input is empty or sanitises к an empty string.
+    ``"unknown"`` when the input is empty or sanitises to an empty string.
     """
     return _SANITISE.sub("_", (failure_mode or "unknown").lower()) or "unknown"
 
