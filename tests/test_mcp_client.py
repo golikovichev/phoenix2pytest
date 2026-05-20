@@ -299,6 +299,6 @@ def test_real_mcp_subprocess_lists_tools() -> None:
     assert tools, "Phoenix MCP server returned no tools"
     tool_names = {t["name"] for t in tools}
     expected_subset = {"list-projects", "list-traces", "get-trace", "get-spans"}
-    assert expected_subset.issubset(
-        tool_names
-    ), f"missing expected tools: {expected_subset - tool_names}"
+    assert expected_subset.issubset(tool_names), (
+        f"missing expected tools: {expected_subset - tool_names}"
+    )
