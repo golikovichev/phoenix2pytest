@@ -1,0 +1,54 @@
+# Build context excludes for `docker build` and Cloud Build.
+# Keeps the context lean: the runtime image only needs pyproject.toml,
+# README, LICENSE, and src/. Everything else either bloats the image
+# or risks leaking developer state into deployed containers.
+
+# Python build / cache artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.coverage
+htmlcov/
+*.cover
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local IDE / editor state
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git internals (gcloud/Docker do not need history to build)
+.git/
+.gitignore
+.github/
+
+# Local-only secrets and env files (defence in depth, .env should
+# never be committed but skip from build context regardless)
+.env
+.env.local
+.env.*.local
+
+# Test artifacts and generated outputs
+tests/
+generated_tests/
+*.log
+
+# Vault / docs / project metadata not needed at runtime
+docs/
+scripts/
+CHANGELOG.md
+CONTRIBUTING.md
+
+# OS noise
+.DS_Store
+Thumbs.db
