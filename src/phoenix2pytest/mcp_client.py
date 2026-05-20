@@ -186,8 +186,7 @@ class PhoenixMCPClient:
         if not line:
             stderr_tail = self._scrub_secrets("\n".join(self._stderr_buffer[-20:]))
             raise PhoenixMCPError(
-                f"Phoenix MCP server closed stdout without responding. "
-                f"Stderr tail: {stderr_tail!r}"
+                f"Phoenix MCP server closed stdout without responding. Stderr tail: {stderr_tail!r}"
             )
         return json.loads(line)
 
