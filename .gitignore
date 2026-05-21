@@ -224,3 +224,6 @@ generated_tests/
 
 # Scratchpad scripts. Drafts live local until ported into src/ as real modules.
 scripts/*_draft.py
+
+# Demo video assets generated locally at repo root (slides, subtitles, raw video). Not source.
+/videos/

@@ -182,14 +182,31 @@ def configure_phoenix_tracer(project_name: str):  # pragma: no cover - integrati
 
 
 def configure_gemini_client(model: str = "gemini-2.5-flash"):  # pragma: no cover - integration
-    """Build a Gemini client for live calls; raise if API key missing."""
+    """Build a Gemini client for live calls.
+
+    Supports two auth paths:
+    - Direct Gemini API: GEMINI_API_KEY or GOOGLE_API_KEY set.
+    - Vertex AI: GOOGLE_GENAI_USE_VERTEXAI=True plus GOOGLE_CLOUD_PROJECT
+      and GOOGLE_CLOUD_LOCATION set (Application Default Credentials
+      handle auth, no API key needed).
+
+    Raises if neither path is configured.
+    """
     from google import genai
     from google.genai.types import HttpOptions
 
-    if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
+    has_api_key = bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+    use_vertex = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "").lower() in {"true", "1", "yes"}
+    has_vertex = use_vertex and bool(
+        os.environ.get("GOOGLE_CLOUD_PROJECT") and os.environ.get("GOOGLE_CLOUD_LOCATION")
+    )
+
+    if not has_api_key and not has_vertex:
         raise RuntimeError(
-            "GEMINI_API_KEY (or GOOGLE_API_KEY) must be set to make live Gemini calls "
-            "for real-source traces. Use --skip-real to bypass."
+            "Live Gemini calls require either GEMINI_API_KEY (or GOOGLE_API_KEY) "
+            "for the direct API path, OR GOOGLE_GENAI_USE_VERTEXAI=True plus "
+            "GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION for Vertex AI. "
+            "Use --skip-real to bypass and emit '[skipped]' for real entries."
         )
     return genai.Client(http_options=HttpOptions(api_version="v1")), model
 
