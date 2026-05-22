@@ -227,3 +227,8 @@ scripts/*_draft.py
 
 # Demo video assets generated locally at repo root (slides, subtitles, raw video). Not source.
 /videos/
+
+# Bright Data harvest dumps (third-party Reddit user content). Pipeline outputs
+# stay local; only the curated single-record contribution to demo_dataset.json
+# is committed.
+tests/data/bd_samples/

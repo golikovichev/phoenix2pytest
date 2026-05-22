@@ -40,21 +40,23 @@ def dataset() -> list[dict]:
     return load_dataset()
 
 
-def test_dataset_has_exactly_50_traces(dataset: list[dict]) -> None:
-    assert len(dataset) == 50
+def test_dataset_has_exactly_51_traces(dataset: list[dict]) -> None:
+    """50 curated traces plus 1 real-harvested from Reddit via Bright Data."""
+    assert len(dataset) == 51
 
 
-def test_dataset_real_vs_synthetic_split(dataset: list[dict]) -> None:
-    """Spec: 15 real-Gemini elicited + 35 synthetic = 50."""
+def test_dataset_source_split(dataset: list[dict]) -> None:
+    """Spec: 15 real-Gemini elicited + 35 synthetic + 1 real-harvested = 51."""
     counts = Counter(t["source"] for t in dataset)
     assert counts["real"] == 15
     assert counts["synthetic"] == 35
+    assert counts["real-harvested"] == 1
 
 
 def test_dataset_failure_mode_distribution(dataset: list[dict]) -> None:
-    """Distribution must match the demo-data-curation spec table."""
+    """Distribution: original curated 50 plus 1 harvested hallucination."""
     spec = {
-        "hallucination": 12,
+        "hallucination": 13,
         "format_break": 10,
         "off_topic_drift": 6,
         "stale_real_time_data": 6,
@@ -92,10 +94,10 @@ def test_dataset_ids_are_unique(dataset: list[dict]) -> None:
     assert len(set(ids)) == len(ids)
 
 
-def test_dataset_synthetic_entries_have_llm_output(dataset: list[dict]) -> None:
-    """Every synthetic entry has a non-empty llm_output ready to ingest."""
+def test_dataset_synthetic_and_harvested_entries_have_llm_output(dataset: list[dict]) -> None:
+    """Synthetic and real-harvested entries carry the failed output verbatim."""
     for trace in dataset:
-        if trace["source"] == "synthetic":
+        if trace["source"] in ("synthetic", "real-harvested"):
             assert isinstance(trace["llm_output"], str) and trace["llm_output"], trace["id"]
 
 
@@ -170,8 +172,13 @@ def test_validate_rejects_unknown_source() -> None:
 
 
 def test_validate_rejects_synthetic_with_empty_output() -> None:
-    with pytest.raises(ValueError, match="synthetic but has empty llm_output"):
+    with pytest.raises(ValueError, match="has empty llm_output"):
         validate_dataset([_minimal_trace(source="synthetic", llm_output="")])
+
+
+def test_validate_rejects_real_harvested_with_empty_output() -> None:
+    with pytest.raises(ValueError, match="has empty llm_output"):
+        validate_dataset([_minimal_trace(source="real-harvested", llm_output="")])
 
 
 def test_validate_rejects_real_with_pre_populated_output() -> None:
@@ -258,10 +265,13 @@ def test_split_by_source_partitions_correctly() -> None:
 
 
 def test_split_by_source_on_real_dataset(dataset: list[dict]) -> None:
-    real, synthetic = split_by_source(dataset)
-    assert len(real) == 15
-    assert len(synthetic) == 35
-    assert len(real) + len(synthetic) == len(dataset)
+    """split_by_source groups by live-vs-stored: real -> live, synthetic and
+    real-harvested -> stored (already have llm_output).
+    """
+    live, stored = split_by_source(dataset)
+    assert len(live) == 15
+    assert len(stored) == 36  # 35 synthetic + 1 real-harvested
+    assert len(live) + len(stored) == len(dataset)
 
 
 # ---------------------------------------------------------------------------
