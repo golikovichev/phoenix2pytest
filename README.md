@@ -11,7 +11,7 @@
 
 **Stack:** Google Cloud, Vertex AI, Gemini 2.5, Agent Builder, Arize Phoenix MCP, FastAPI, pytest
 
-> **Status:** Alpha (v0.0.x). In active development for the June 2026 Devpost submission.
+> **Status:** Alpha (v0.1.0). Built for the Devpost submission cycle ending June 2026.
 
 ---
 

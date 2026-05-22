@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "phoenix2pytest"
-version = "0.0.1"
+version = "0.1.0"
 description = "Turn production LLM failures into regression tests, automatically."
 readme = "README.md"
 requires-python = ">=3.11"
