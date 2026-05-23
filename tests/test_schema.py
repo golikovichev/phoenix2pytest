@@ -15,6 +15,8 @@ import pytest
 from pydantic import ValidationError
 
 from phoenix2pytest.schema import (
+    ASSERTION_STRATEGY_VALUES,
+    FAILURE_MODE_VALUES,
     AssertionStrategy,
     ExtractorResponse,
     FailureMode,
@@ -28,9 +30,26 @@ from scripts.ingest_demo_dataset import VALID_FAILURE_MODES
 
 
 def test_failure_mode_matches_demo_dataset_vocabulary() -> None:
-    """The schema's FailureMode must mirror VALID_FAILURE_MODES exactly."""
+    """The schema's FailureMode must mirror VALID_FAILURE_MODES exactly.
+
+    With the schema as the canonical source (ingest_demo_dataset.py derives its
+    set from FAILURE_MODE_VALUES), this is a belt-and-braces invariant rather
+    than the sole gate, but it still catches accidental local overrides.
+    """
     schema_modes = set(FailureMode.__args__)  # type: ignore[attr-defined]
     assert schema_modes == VALID_FAILURE_MODES
+
+
+def test_failure_mode_values_tuple_matches_literal() -> None:
+    """The derived FAILURE_MODE_VALUES tuple must match the Literal exactly."""
+    assert set(FAILURE_MODE_VALUES) == set(FailureMode.__args__)  # type: ignore[attr-defined]
+    assert isinstance(FAILURE_MODE_VALUES, tuple)
+
+
+def test_assertion_strategy_values_tuple_matches_literal() -> None:
+    """The derived ASSERTION_STRATEGY_VALUES tuple must match the Literal exactly."""
+    assert set(ASSERTION_STRATEGY_VALUES) == set(AssertionStrategy.__args__)  # type: ignore[attr-defined]
+    assert isinstance(ASSERTION_STRATEGY_VALUES, tuple)
 
 
 def test_assertion_strategy_exposes_five_known_strategies() -> None:
@@ -130,6 +149,34 @@ def test_trace_scenario_rejects_negative_token_count() -> None:
         TraceScenario(**_minimal_scenario_kwargs(), tokens_total=-1)
 
 
+def test_trace_scenario_accepts_zero_tokens_explicitly() -> None:
+    """``tokens_total=0`` is the deliberate default boundary, not an accident.
+
+    Without this test, a future contributor could change ``ge=0`` to ``gt=0``
+    without anything failing - the minimum-fields test only asserts the
+    implicit default, not that zero is an allowed explicit value.
+    """
+    scenario = TraceScenario(**_minimal_scenario_kwargs(), tokens_total=0)
+    assert scenario.tokens_total == 0
+
+
+def test_trace_scenario_coerces_numeric_string_token_count() -> None:
+    """Pydantic v2 default behaviour coerces numeric strings to int.
+
+    Pins the chosen behaviour: when Gemini returns ``"tokens_total": "128"``
+    (e.g. via a JSON string field), pydantic accepts and coerces. If we ever
+    want strict mode, this test fails first and forces a decision.
+    """
+    scenario = TraceScenario(**_minimal_scenario_kwargs(), tokens_total="128")  # type: ignore[arg-type]
+    assert scenario.tokens_total == 128
+
+
+def test_trace_scenario_rejects_non_numeric_token_count() -> None:
+    """Non-numeric strings still fail validation - coercion is not unconditional."""
+    with pytest.raises(ValidationError):
+        TraceScenario(**_minimal_scenario_kwargs(), tokens_total="lots")  # type: ignore[arg-type]
+
+
 def test_trace_scenario_rejects_extra_fields() -> None:
     with pytest.raises(ValidationError):
         TraceScenario(**_minimal_scenario_kwargs(), unknown="x")
@@ -156,6 +203,22 @@ def test_trace_scenario_round_trips_json() -> None:
     )
     payload = original.model_dump()
     restored = TraceScenario.model_validate(payload)
+    assert restored == original
+
+
+def test_trace_scenario_round_trips_json_string() -> None:
+    """End-to-end JSON string round-trip catches encoder edge cases that the
+    dict-level round-trip misses (None serialisation, custom encoders).
+    """
+    original = TraceScenario(
+        **_minimal_scenario_kwargs(),
+        ideal_behavior=None,
+        model="gemini-2.5-flash",
+        tokens_total=42,
+    )
+    payload = original.model_dump_json()
+    assert isinstance(payload, str)
+    restored = TraceScenario.model_validate_json(payload)
     assert restored == original
 
 

@@ -16,14 +16,15 @@ gets a typed payload:
   extractor, consumed by the test synthesiser.
 
 The :data:`FailureMode` and :data:`AssertionStrategy` literals are the
-authoritative vocabulary. ``FailureMode`` mirrors
-``scripts.ingest_demo_dataset.VALID_FAILURE_MODES`` to keep the demo dataset
-and the live pipeline aligned.
+authoritative vocabulary. Downstream runtime collections derive from these
+Literals via :func:`typing.get_args` (see :data:`FAILURE_MODE_VALUES` and
+:data:`ASSERTION_STRATEGY_VALUES`), so the demo dataset and the live
+pipeline cannot drift apart by accident.
 """
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -35,9 +36,15 @@ FailureMode = Literal[
     "wrong_reasoning",
     "refusal_bug",
 ]
-"""Closed set of failure modes the pipeline recognises.
+"""Closed set of failure modes the pipeline recognises."""
 
-Must stay in sync with ``scripts.ingest_demo_dataset.VALID_FAILURE_MODES``.
+FAILURE_MODE_VALUES: tuple[str, ...] = get_args(FailureMode)
+"""Tuple of failure mode strings derived from the :data:`FailureMode` Literal.
+
+This is the single source of truth re-exported for downstream code that needs
+a runtime collection (e.g. ``scripts.ingest_demo_dataset.VALID_FAILURE_MODES``
+sets itself from this tuple). Any change to the Literal propagates here
+automatically, so the dataset cannot drift from the schema by accident.
 """
 
 AssertionStrategy = Literal[
@@ -49,11 +56,20 @@ AssertionStrategy = Literal[
 ]
 """Strategies the synthesiser knows how to turn into pytest assertions."""
 
+ASSERTION_STRATEGY_VALUES: tuple[str, ...] = get_args(AssertionStrategy)
+"""Tuple of assertion-strategy strings derived from :data:`AssertionStrategy`."""
 
-def _stripped_non_empty(value: str) -> str:
-    """Reject blank or whitespace-only strings; return the stripped form."""
+
+def _stripped_non_empty(value: object) -> object:
+    """Reject blank or whitespace-only strings; return the stripped form.
+
+    Non-string inputs are passed through unchanged so pydantic's own type
+    validation can reject them with a clear ``string_type`` error. The
+    previous version coerced via ``str(value)`` which silently turned
+    non-strings into their string form, masking the original type.
+    """
     if not isinstance(value, str):
-        raise TypeError("expected a string")
+        return value
     cleaned = value.strip()
     if not cleaned:
         raise ValueError("must not be blank")
@@ -93,8 +109,8 @@ class TraceScenario(BaseModel):
 
     @field_validator("user_prompt", "llm_output", mode="before")
     @classmethod
-    def _require_non_blank(cls, value: object) -> str:
-        return _stripped_non_empty(value if isinstance(value, str) else str(value))
+    def _require_non_blank(cls, value: object) -> object:
+        return _stripped_non_empty(value)
 
     @field_validator("ideal_behavior", "model", "span_id", "dataset_id", mode="before")
     @classmethod
@@ -140,8 +156,8 @@ class ExtractorResponse(BaseModel):
 
     @field_validator("evidence", "expected_behavior", mode="before")
     @classmethod
-    def _require_non_blank(cls, value: object) -> str:
-        return _stripped_non_empty(value if isinstance(value, str) else str(value))
+    def _require_non_blank(cls, value: object) -> object:
+        return _stripped_non_empty(value)
 
     @field_validator("key_strings_to_exclude", "key_patterns_required", mode="before")
     @classmethod
@@ -154,6 +170,8 @@ class ExtractorResponse(BaseModel):
 
 
 __all__ = [
+    "ASSERTION_STRATEGY_VALUES",
+    "FAILURE_MODE_VALUES",
     "AssertionStrategy",
     "ExtractorResponse",
     "FailureMode",

@@ -39,6 +39,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Sourced from the schema's Literal so a single edit to
+# ``phoenix2pytest.schema.FailureMode`` propagates here automatically.
+from phoenix2pytest.schema import FAILURE_MODE_VALUES
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATASET_PATH = REPO_ROOT / "tests" / "data" / "demo_dataset.json"
 DEFAULT_PROJECT_NAME = "phoenix2pytest-demo"
@@ -53,14 +57,7 @@ REQUIRED_FIELDS = {
     "demo_featured",
 }
 
-VALID_FAILURE_MODES = {
-    "hallucination",
-    "format_break",
-    "off_topic_drift",
-    "stale_real_time_data",
-    "wrong_reasoning",
-    "refusal_bug",
-}
+VALID_FAILURE_MODES = set(FAILURE_MODE_VALUES)
 
 VALID_SOURCES = {"real", "synthetic", "real-harvested"}
 
