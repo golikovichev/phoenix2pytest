@@ -40,23 +40,23 @@ def dataset() -> list[dict]:
     return load_dataset()
 
 
-def test_dataset_has_exactly_51_traces(dataset: list[dict]) -> None:
-    """50 curated traces plus 1 real-harvested from Reddit via Bright Data."""
-    assert len(dataset) == 51
+def test_dataset_has_exactly_52_traces(dataset: list[dict]) -> None:
+    """50 curated traces plus 2 real-harvested (Reddit Samsung G70D + Cursor support bot)."""
+    assert len(dataset) == 52
 
 
 def test_dataset_source_split(dataset: list[dict]) -> None:
-    """Spec: 15 real-Gemini elicited + 35 synthetic + 1 real-harvested = 51."""
+    """Spec: 15 real-Gemini elicited + 35 synthetic + 2 real-harvested = 52."""
     counts = Counter(t["source"] for t in dataset)
     assert counts["real"] == 15
     assert counts["synthetic"] == 35
-    assert counts["real-harvested"] == 1
+    assert counts["real-harvested"] == 2
 
 
 def test_dataset_failure_mode_distribution(dataset: list[dict]) -> None:
-    """Distribution: original curated 50 plus 1 harvested hallucination."""
+    """Distribution: original curated 50 plus 2 harvested hallucinations."""
     spec = {
-        "hallucination": 13,
+        "hallucination": 14,
         "format_break": 10,
         "off_topic_drift": 6,
         "stale_real_time_data": 6,
@@ -270,7 +270,7 @@ def test_split_by_source_on_real_dataset(dataset: list[dict]) -> None:
     """
     live, stored = split_by_source(dataset)
     assert len(live) == 15
-    assert len(stored) == 36  # 35 synthetic + 1 real-harvested
+    assert len(stored) == 37  # 35 synthetic + 2 real-harvested
     assert len(live) + len(stored) == len(dataset)
 
 
