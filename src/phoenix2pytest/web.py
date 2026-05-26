@@ -63,6 +63,8 @@ async def limit_request_size(request: Request, call_next):
                         status_code=413,
                     )
             except ValueError:
+                # Malformed Content-Length header: let downstream handle the
+                # request normally. Body size limit still applies via ASGI.
                 pass
     return await call_next(request)
 
