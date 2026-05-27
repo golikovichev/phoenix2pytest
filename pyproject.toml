@@ -9,7 +9,7 @@ description = "Turn production LLM failures into regression tests, automatically
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Mikhail Golikov" }]
+authors = [{ name = "Mikhail Golikov", email = "golikovichev@gmail.com" }]
 keywords = [
     "llm",
     "testing",
@@ -50,8 +50,10 @@ dev = [
 ]
 
 [project.urls]
+Homepage = "https://github.com/golikovichev/phoenix2pytest"
 Repository = "https://github.com/golikovichev/phoenix2pytest"
 Issues = "https://github.com/golikovichev/phoenix2pytest/issues"
+Changelog = "https://github.com/golikovichev/phoenix2pytest/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/phoenix2pytest"]
@@ -62,6 +64,9 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E501"]  # demo scripts contain long LLM prompt strings
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
