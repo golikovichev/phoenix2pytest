@@ -137,7 +137,7 @@ gcloud run deploy phoenix2pytest --image gcr.io/<project>/phoenix2pytest \
 
 Phoenix API key + Gemini credentials live in Secret Manager mounts, not env vars. Region pinned to us-central1 to match Vertex AI Gemini availability.
 
-Hosted demo URL ships в 0.2.1 (target 2026-06-25).
+Hosted demo URL ships in 0.2.1 (target 2026-06-25).
 
 ## Error handling
 
