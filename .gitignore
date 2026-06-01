@@ -232,3 +232,6 @@ scripts/*_draft.py
 # stay local; only the curated single-record contribution to demo_dataset.json
 # is committed.
 tests/data/bd_samples/
+
+# Local knowledge-graph extraction output (AST scan, not committed)
+graphify-out/
