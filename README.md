@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/golikovichev/phoenix2pytest/actions/workflows/ci.yml/badge.svg)](https://github.com/golikovichev/phoenix2pytest/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/golikovichev/phoenix2pytest/actions/workflows/codeql.yml/badge.svg)](https://github.com/golikovichev/phoenix2pytest/actions/workflows/codeql.yml)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13011/badge)](https://www.bestpractices.dev/projects/13011)
 [![codecov](https://codecov.io/gh/golikovichev/phoenix2pytest/branch/main/graph/badge.svg)](https://codecov.io/gh/golikovichev/phoenix2pytest)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
