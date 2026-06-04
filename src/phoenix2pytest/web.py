@@ -14,10 +14,11 @@ The Gemini client is injected through FastAPI's dependency-override hook so
 tests can swap in a fake without monkeypatching the module.
 
 Hardening notes:
-- No auth on /generate. Each call hits the Gemini quota of whoever wired
-  the client via configure_client(). Acceptable for a private hackathon
-  demo, NOT acceptable for a public URL. Front this with a shared-secret
-  header or a rate-limit middleware before sharing the deployment.
+- /generate is gated by an optional shared secret: when P2P_API_TOKEN is set,
+  callers must send a matching X-API-Token header (see require_api_token).
+  With the token unset the endpoint is open, which is intended for the public
+  demo; cost is bounded by the request-size cap, max-instances, and a billing
+  budget. Add a rate-limit middleware before any heavier exposure.
 - Request body capped at MAX_BODY_BYTES below; oversized posts get 413.
 """
 
@@ -153,39 +154,53 @@ EXAMPLE_DETAILS_JSON = (
 )
 
 # ruff: noqa: E501 (HTML payload kept verbatim for browser rendering)
+# Shared inline style for the form and result pages. Inline + dependency-free so
+# the demo loads instantly and works under a strict CSP with no external assets.
+_STYLE = """
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c1e21; --muted:#6b7280; --accent:#e8590c; --border:#e2e5ea; --code-bg:#0d1117; --code-ink:#e6edf3; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); margin: 0; padding: 2.5rem 1rem; line-height: 1.5; }
+  .card { max-width: 820px; margin: 0 auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.75rem 2rem; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+  .tagline { color: var(--muted); margin: 0 0 1rem; }
+  label { display: block; margin: 1.1rem 0 .35rem; font-weight: 600; }
+  textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; padding: .6rem .7rem; border: 1px solid var(--border); border-radius: 8px; resize: vertical; background: #fcfcfd; }
+  textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232,89,12,.15); }
+  button { margin-top: 1.25rem; padding: .65rem 1.3rem; font-size: 1rem; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 8px; cursor: pointer; }
+  button:hover { background: #cf4f08; }
+  .hint { color: var(--muted); font-size: .85rem; margin-top: .3rem; }
+  pre { background: var(--code-bg); color: var(--code-ink); padding: 1rem 1.1rem; border-radius: 10px; overflow-x: auto; font-size: .85rem; line-height: 1.45; }
+  a { color: var(--accent); }
+  footer { max-width: 820px; margin: 1rem auto 0; color: var(--muted); font-size: .85rem; }
+"""
+
 _FORM_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>phoenix2pytest: trace to pytest</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 880px; margin: 2rem auto; padding: 0 1rem; }
-    h1 { font-size: 1.5rem; }
-    textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 0.85rem; }
-    label { display: block; margin: 1rem 0 0.25rem; font-weight: 600; }
-    button { margin-top: 1rem; padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; }
-    pre { background: #f4f4f4; padding: 1rem; overflow-x: auto; }
-    .hint { color: #555; font-size: 0.85rem; margin-top: 0.25rem; }
-  </style>
+  <style>__STYLE__</style>
 </head>
 <body>
-  <h1>phoenix2pytest</h1>
-  <p>Paste a Phoenix LLM trace and its extracted failure details to get a runnable pytest file.</p>
-  <p class="hint">An example is pre-filled below: just click Generate. Generation calls Gemini and usually takes a few seconds.</p>
+  <main class="card">
+    <h1>phoenix2pytest</h1>
+    <p class="tagline">Turn a production LLM failure trace into a runnable pytest regression test.</p>
+    <p class="hint">An example is pre-filled below: just click Generate. Generation calls Gemini and usually takes a few seconds.</p>
 
-  <form method="post" action="/generate">
-    <label for="trace_json">Trace JSON</label>
-    <textarea id="trace_json" name="trace_json" rows="6" required>__TRACE_EXAMPLE__</textarea>
-    <div class="hint">Fields: user_prompt (required), llm_output, span_id.</div>
+    <form method="post" action="/generate">
+      <label for="trace_json">Trace JSON</label>
+      <textarea id="trace_json" name="trace_json" rows="5" required>__TRACE_EXAMPLE__</textarea>
+      <div class="hint">Fields: user_prompt (required), llm_output, span_id.</div>
 
-    <label for="details_json">Failure details JSON</label>
-    <textarea id="details_json" name="details_json" rows="8" required>__DETAILS_EXAMPLE__</textarea>
-    <div class="hint">Fields: failure_mode (required), evidence, expected_behavior, assertion_strategy, key_strings_to_exclude, key_patterns_required.</div>
+      <label for="details_json">Failure details JSON</label>
+      <textarea id="details_json" name="details_json" rows="8" required>__DETAILS_EXAMPLE__</textarea>
+      <div class="hint">Fields: failure_mode (required), evidence, expected_behavior, assertion_strategy, key_strings_to_exclude, key_patterns_required.</div>
 
-    <button type="submit">Generate pytest file</button>
-  </form>
-
-  <p class="hint">Source: <a href="https://github.com/golikovichev/phoenix2pytest">github.com/golikovichev/phoenix2pytest</a></p>
+      <button type="submit">Generate pytest file</button>
+    </form>
+  </main>
+  <footer>Source: <a href="https://github.com/golikovichev/phoenix2pytest">github.com/golikovichev/phoenix2pytest</a></footer>
 </body>
 </html>
 """
@@ -194,8 +209,10 @@ _FORM_HTML = """<!DOCTYPE html>
 @app.get("/", response_class=HTMLResponse)
 def form_page() -> str:
     """Render the paste-and-submit HTML form, pre-filled with a runnable example."""
-    return _FORM_HTML.replace("__TRACE_EXAMPLE__", html.escape(EXAMPLE_TRACE_JSON)).replace(
-        "__DETAILS_EXAMPLE__", html.escape(EXAMPLE_DETAILS_JSON)
+    return (
+        _FORM_HTML.replace("__STYLE__", _STYLE)
+        .replace("__TRACE_EXAMPLE__", html.escape(EXAMPLE_TRACE_JSON))
+        .replace("__DETAILS_EXAMPLE__", html.escape(EXAMPLE_DETAILS_JSON))
     )
 
 
@@ -275,12 +292,16 @@ def generate(
     safe_code = html.escape(code)
     safe_mode = html.escape(details.failure_mode)
     body = (
-        '<!DOCTYPE html><html><head><meta charset="utf-8">'
-        "<title>phoenix2pytest: generated test</title></head><body>"
-        f"<h1>Generated pytest for failure mode: {safe_mode}</h1>"
+        '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        "<title>phoenix2pytest: generated test</title>"
+        "<style>" + _STYLE + "</style></head><body>"
+        '<main class="card">'
+        f"<h1>Generated pytest</h1>"
+        f'<p class="tagline">Failure mode: {safe_mode}</p>'
         f"<pre>{safe_code}</pre>"
         '<p><a href="/">Generate another</a></p>'
-        "</body></html>"
+        "</main></body></html>"
     )
     return HTMLResponse(body)
 

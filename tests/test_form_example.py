@@ -29,3 +29,6 @@ def test_form_page_prefills_the_example():
     # The example is rendered into the textareas, not just shown as a placeholder.
     assert "What is the capital of France" in body
     assert "hallucination" in body
+    # Style is interpolated (no leftover placeholder token shipped to the browser).
+    assert "__STYLE__" not in body
+    assert "card" in body
