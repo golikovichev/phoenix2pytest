@@ -15,10 +15,6 @@ substitutions:
   _CPU: "1"
   _TIMEOUT: "300"
   _MAX_INSTANCES: "3"
-  # Secret Manager key holding the Gemini API key. Create once with:
-  #   echo -n "$KEY" | gcloud secrets create gemini-api-key --data-file=-
-  # and grant the Cloud Run service account roles/secretmanager.secretAccessor.
-  _GEMINI_SECRET: gemini-api-key
 
 steps:
   # 1. Build the container image. Two tags so the immutable SHA is auditable
@@ -58,11 +54,10 @@ steps:
       - "--cpu=${_CPU}"
       - "--timeout=${_TIMEOUT}"
       - "--max-instances=${_MAX_INSTANCES}"
+      # The app calls Gemini through Vertex AI using the Cloud Run service
+      # account (ADC), so no API key / secret is mounted. The runtime service
+      # account needs roles/aiplatform.user.
       - "--set-env-vars=PYTHONUNBUFFERED=1"
-      # Mount the Gemini API key from Secret Manager so the running container
-      # can call Gemini without baking credentials into the image. The
-      # secret must already exist; deploy fails otherwise.
-      - "--update-secrets=GEMINI_API_KEY=${_GEMINI_SECRET}:latest"
 
 images:
   - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA"

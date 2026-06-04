@@ -138,6 +138,20 @@ def _wire_default_client() -> None:
         logger.warning("default Gemini client wiring failed; /generate will 503: %s", exc)
 
 
+# A working example pre-filled into the form so a first-time visitor (e.g. a
+# judge) can click Generate with no edits. Kept as the single source of truth:
+# rendered into the form and asserted valid by tests.
+EXAMPLE_TRACE_JSON = (
+    '{"user_prompt": "What is the capital of France?", '
+    '"llm_output": "The capital of France is Berlin."}'
+)
+EXAMPLE_DETAILS_JSON = (
+    '{"failure_mode": "hallucination", "evidence": "answered Berlin", '
+    '"expected_behavior": "should answer Paris", '
+    '"assertion_strategy": "substring_excluded", '
+    '"key_strings_to_exclude": ["Berlin"], "key_patterns_required": ["Paris"]}'
+)
+
 # ruff: noqa: E501 (HTML payload kept verbatim for browser rendering)
 _FORM_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -157,20 +171,21 @@ _FORM_HTML = """<!DOCTYPE html>
 <body>
   <h1>phoenix2pytest</h1>
   <p>Paste a Phoenix LLM trace and its extracted failure details to get a runnable pytest file.</p>
+  <p class="hint">An example is pre-filled below: just click Generate. Generation calls Gemini and usually takes a few seconds.</p>
 
   <form method="post" action="/generate">
     <label for="trace_json">Trace JSON</label>
-    <textarea id="trace_json" name="trace_json" rows="6" required
-      placeholder='{"user_prompt": "...", "llm_output": "...", "span_id": "..."}'></textarea>
+    <textarea id="trace_json" name="trace_json" rows="6" required>__TRACE_EXAMPLE__</textarea>
     <div class="hint">Fields: user_prompt (required), llm_output, span_id.</div>
 
     <label for="details_json">Failure details JSON</label>
-    <textarea id="details_json" name="details_json" rows="8" required
-      placeholder='{"failure_mode": "hallucination", "evidence": "...", "expected_behavior": "...", "assertion_strategy": "substring_excluded", "key_strings_to_exclude": ["..."]}'></textarea>
+    <textarea id="details_json" name="details_json" rows="8" required>__DETAILS_EXAMPLE__</textarea>
     <div class="hint">Fields: failure_mode (required), evidence, expected_behavior, assertion_strategy, key_strings_to_exclude, key_patterns_required.</div>
 
     <button type="submit">Generate pytest file</button>
   </form>
+
+  <p class="hint">Source: <a href="https://github.com/golikovichev/phoenix2pytest">github.com/golikovichev/phoenix2pytest</a></p>
 </body>
 </html>
 """
@@ -178,8 +193,10 @@ _FORM_HTML = """<!DOCTYPE html>
 
 @app.get("/", response_class=HTMLResponse)
 def form_page() -> str:
-    """Render the paste-and-submit HTML form."""
-    return _FORM_HTML
+    """Render the paste-and-submit HTML form, pre-filled with a runnable example."""
+    return _FORM_HTML.replace("__TRACE_EXAMPLE__", html.escape(EXAMPLE_TRACE_JSON)).replace(
+        "__DETAILS_EXAMPLE__", html.escape(EXAMPLE_DETAILS_JSON)
+    )
 
 
 def _parse_json_field(field_name: str, raw: str) -> dict:
