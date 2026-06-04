@@ -23,8 +23,12 @@ Hardening notes:
 
 from __future__ import annotations
 
+import hmac
 import html
 import json
+import logging
+import os
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
@@ -43,10 +47,27 @@ from .synthesiser import (
 # realistic trace payloads while still bounding cost.
 MAX_BODY_BYTES = 256 * 1024
 
+logger = logging.getLogger(__name__)
+
+# Optional shared-secret gate for /generate. When P2P_API_TOKEN is set in the
+# environment, callers must send a matching X-API-Token header; otherwise the
+# endpoint is open (local/dev default). This keeps a publicly reachable
+# deployment from letting anyone spend the project's Gemini quota.
+_API_TOKEN_ENV = "P2P_API_TOKEN"
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Wire the production Gemini client once, when the server boots."""
+    _wire_default_client()
+    yield
+
+
 app = FastAPI(
     title="phoenix2pytest",
     description="Turn Phoenix LLM failure traces into pytest regression tests.",
     version="0.0.1",
+    lifespan=_lifespan,
 )
 
 
@@ -95,6 +116,26 @@ def configure_client(client: GeminiClient) -> None:
     """Install a GeminiClient instance for production use."""
     global _gemini_client
     _gemini_client = client
+
+
+def _wire_default_client() -> None:
+    """Wire a real Gemini client at startup when the host has not injected one.
+
+    Without this, a deployed instance left ``_gemini_client`` at ``None`` and
+    every /generate call returned a 503. Tests inject their own client (via
+    configure_client or dependency_overrides), so this skips when one is already
+    set. Building the client must never crash boot: on failure (e.g. missing
+    credentials) the slot stays ``None`` and /generate degrades to a clear 503.
+    """
+    global _gemini_client
+    if _gemini_client is not None:
+        return
+    try:
+        from .synthesiser import build_default_client
+
+        configure_client(build_default_client())
+    except Exception as exc:  # boot must survive a genai/creds failure
+        logger.warning("default Gemini client wiring failed; /generate will 503: %s", exc)
 
 
 # ruff: noqa: E501 (HTML payload kept verbatim for browser rendering)
@@ -158,12 +199,28 @@ def _parse_json_field(field_name: str, raw: str) -> dict:
     return parsed
 
 
+def require_api_token(request: Request) -> None:
+    """Gate /generate behind a shared secret when P2P_API_TOKEN is configured.
+
+    No token configured -> open endpoint (local/dev). Token configured -> the
+    request must carry a matching X-API-Token header, compared in constant time.
+    This stops an exposed public URL from spending the project's Gemini quota.
+    """
+    expected = os.environ.get(_API_TOKEN_ENV)
+    if not expected:
+        return
+    provided = request.headers.get("X-API-Token", "")
+    if not hmac.compare_digest(provided, expected):
+        raise HTTPException(status_code=401, detail="Invalid or missing X-API-Token.")
+
+
 @app.post("/generate", response_model=None)
 def generate(
     request: Request,
     trace_json: Annotated[str, Form()],
     details_json: Annotated[str, Form()],
     client: Annotated[GeminiClient, Depends(get_client)],
+    _: Annotated[None, Depends(require_api_token)] = None,
 ) -> JSONResponse | HTMLResponse:
     """Synthesise a pytest file from posted trace + failure JSON.
 

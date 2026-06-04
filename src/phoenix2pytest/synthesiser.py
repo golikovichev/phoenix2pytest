@@ -15,12 +15,19 @@ stripped defensively so the file can be written to disk and run as-is.
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 DEFAULT_MODEL = "gemini-2.5-pro"
+
+# Vertex AI target for the production client. Overridable via the standard
+# GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION env vars; the literals are the
+# fallback for the hackathon deployment.
+DEFAULT_VERTEX_PROJECT = "phoenix2pytest-hackathon"
+DEFAULT_VERTEX_LOCATION = "us-central1"
 
 SYSTEM_PROMPT = """You generate pytest regression tests that catch specific LLM failure modes.
 
@@ -108,6 +115,60 @@ class GeminiClient(Protocol):
     def generate_text(self, *, model: str, system: str, user: str) -> str:
         """Return the model reply for the given system + user message pair."""
         ...
+
+
+class VertexGeminiClient:
+    """Production :class:`GeminiClient` backed by google-genai on Vertex AI.
+
+    Construction performs no network I/O and needs no credentials: the
+    underlying ``genai.Client`` is created lazily on the first call, so the
+    object can be built at import/startup time in any environment. Tests inject
+    a fake through ``genai_client``.
+    """
+
+    def __init__(
+        self,
+        genai_client: Any = None,
+        *,
+        project: str | None = None,
+        location: str | None = None,
+    ) -> None:
+        self._client = genai_client
+        self._project = project or os.environ.get("GOOGLE_CLOUD_PROJECT") or DEFAULT_VERTEX_PROJECT
+        self._location = (
+            location or os.environ.get("GOOGLE_CLOUD_LOCATION") or DEFAULT_VERTEX_LOCATION
+        )
+
+    def _ensure_client(self) -> Any:
+        if self._client is None:
+            from google import genai
+            from google.genai.types import HttpOptions
+
+            # Pass Vertex config explicitly instead of mutating process env, so the
+            # adapter's behaviour does not depend on global state or call order.
+            self._client = genai.Client(
+                vertexai=True,
+                project=self._project,
+                location=self._location,
+                http_options=HttpOptions(api_version="v1"),
+            )
+        return self._client
+
+    def generate_text(self, *, model: str, system: str, user: str) -> str:
+        from google.genai.types import GenerateContentConfig
+
+        client = self._ensure_client()
+        response = client.models.generate_content(
+            model=model,
+            contents=user,
+            config=GenerateContentConfig(system_instruction=system),
+        )
+        return response.text or ""
+
+
+def build_default_client() -> GeminiClient:
+    """Return the production GeminiClient used when serving the web app."""
+    return VertexGeminiClient()
 
 
 def build_user_message(trace: TraceData, details: FailureDetails) -> str:
