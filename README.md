@@ -44,7 +44,7 @@ phoenix2pytest goes the other direction. It reads traces from your Arize Phoenix
 5. A second pass synthesises a runnable pytest file.
 6. You drop the test into your repo and your CI catches the regression next time.
 
-> The pipeline runs end-to-end on a single trace today (web UI + Cloud Run). Batch generation across many annotated traces in one click is on the v0.1 polish list before the Devpost submission.
+> The pipeline runs end-to-end on a single trace (`/`) or on many annotated traces in one request (`/batch`), both on the web UI and Cloud Run. Batch mode groups traces by failure mode and folds shared modes into one parametrised test.
 
 ## Architecture
 

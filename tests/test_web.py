@@ -224,3 +224,146 @@ def test_configure_client_installs_client_for_runtime() -> None:
     stub = _StubGemini()
     web.configure_client(stub)
     assert web.get_client() is stub
+
+
+def test_health_endpoint_returns_ok() -> None:
+    """A lightweight /health endpoint lets uptime probes confirm the service."""
+    client = TestClient(web.app)
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_batch_form_page_returns_html_with_example_array() -> None:
+    """GET /batch renders a form pre-filled with a runnable example array."""
+    client = TestClient(web.app)
+    response = client.get("/batch")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "items_json" in response.text
+    # The pre-filled example is an html-escaped JSON array of trace+details
+    # pairs, so the field names appear inside &quot;...&quot; rather than raw.
+    assert "trace" in response.text
+    assert "details" in response.text
+    assert "&quot;" in response.text
+
+
+def _batch_items(*pairs: tuple[str, str]) -> str:
+    """Build the items_json payload from (prompt, failure_mode) pairs."""
+    return json.dumps(
+        [
+            {
+                "trace": {"user_prompt": prompt, "llm_output": "bad output"},
+                "details": {"failure_mode": mode, "assertion_strategy": "substring_excluded"},
+            }
+            for prompt, mode in pairs
+        ]
+    )
+
+
+def test_generate_batch_groups_by_failure_mode_in_html(client_with_stub) -> None:
+    """Three traces across two failure modes produce two grouped sections."""
+    client, stub = client_with_stub
+    items_json = _batch_items(
+        ("What is the capital of France?", "hallucination"),
+        ("List the planets", "hallucination"),
+        ("Summarise this", "format_break"),
+    )
+    response = client.post("/generate-batch", data={"items_json": items_json})
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "hallucination" in response.text
+    assert "format_break" in response.text
+    # synthesise_many groups by failure mode: one Gemini call per distinct mode.
+    assert len(stub.calls) == 2
+    # The summary reports generated files vs input traces (the value of batch:
+    # 3 traces folded into 2 files), not a tautology.
+    assert "2 file(s) from 3 trace(s)" in response.text
+
+
+def test_generate_batch_returns_json_mapping_when_requested(client_with_stub) -> None:
+    """JSON callers get a {failure_mode_slug: code} mapping."""
+    client, stub = client_with_stub
+    items_json = _batch_items(
+        ("Tell me a fact", "hallucination"),
+        ("Give me JSON", "format_break"),
+    )
+    response = client.post(
+        "/generate-batch",
+        data={"items_json": items_json},
+        headers={"Accept": "application/json"},
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    payload = response.json()
+    assert set(payload["files"].keys()) == {"hallucination", "format_break"}
+    assert payload["files"]["hallucination"] == stub.reply
+    assert payload["model"] == "gemini-2.5-pro"
+
+
+def test_generate_batch_rejects_non_array(client_with_stub) -> None:
+    client, _ = client_with_stub
+    response = client.post(
+        "/generate-batch",
+        data={"items_json": '{"trace": {}, "details": {}}'},
+    )
+    assert response.status_code == 400
+    assert "must be a JSON array" in response.json()["detail"]
+
+
+def test_generate_batch_rejects_empty_array(client_with_stub) -> None:
+    client, _ = client_with_stub
+    response = client.post("/generate-batch", data={"items_json": "[]"})
+    assert response.status_code == 400
+    assert "at least one" in response.json()["detail"]
+
+
+def test_generate_batch_rejects_invalid_json(client_with_stub) -> None:
+    client, _ = client_with_stub
+    response = client.post("/generate-batch", data={"items_json": "[{not json"})
+    assert response.status_code == 400
+    assert "items_json is not valid JSON" in response.json()["detail"]
+
+
+def test_generate_batch_rejects_non_object_item(client_with_stub) -> None:
+    client, _ = client_with_stub
+    response = client.post("/generate-batch", data={"items_json": "[1, 2, 3]"})
+    assert response.status_code == 400
+    assert "each item must be a JSON object" in response.json()["detail"]
+
+
+def test_generate_batch_rejects_item_missing_user_prompt(client_with_stub) -> None:
+    client, _ = client_with_stub
+    items_json = json.dumps(
+        [{"trace": {"llm_output": "x"}, "details": {"failure_mode": "hallucination"}}]
+    )
+    response = client.post("/generate-batch", data={"items_json": items_json})
+    assert response.status_code == 400
+    assert "user_prompt is required" in response.json()["detail"]
+
+
+def test_generate_batch_rejects_item_missing_failure_mode(client_with_stub) -> None:
+    client, _ = client_with_stub
+    items_json = json.dumps([{"trace": {"user_prompt": "hi"}, "details": {"evidence": "x"}}])
+    response = client.post("/generate-batch", data={"items_json": items_json})
+    assert response.status_code == 400
+    assert "failure_mode is required" in response.json()["detail"]
+
+
+def test_generate_batch_escapes_failure_mode_in_html(client_with_stub) -> None:
+    """User-controlled failure_mode must not enable reflected XSS in batch view."""
+    client, _ = client_with_stub
+    items_json = json.dumps(
+        [
+            {
+                "trace": {"user_prompt": "x"},
+                "details": {"failure_mode": "<script>alert(1)</script>"},
+            }
+        ]
+    )
+    response = client.post("/generate-batch", data={"items_json": items_json})
+    assert response.status_code == 200
+    # The failure mode becomes a sanitised slug (only [a-z0-9_]) and is also
+    # html-escaped, so no raw script tag can reach the rendered page.
+    assert "<script>alert(1)</script>" not in response.text
+    assert "<script" not in response.text

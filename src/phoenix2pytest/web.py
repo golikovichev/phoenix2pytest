@@ -7,8 +7,12 @@ lifting (trace parsing, failure extraction, Gemini synthesis) lives in
 `phoenix2pytest.synthesiser`.
 
 Endpoints:
-- GET  /          : inline HTML form
-- POST /generate  : accepts trace + failure details JSON, returns code
+- GET  /                : single-trace HTML form
+- POST /generate        : accepts one trace + failure details JSON, returns code
+- GET  /batch           : multi-trace HTML form
+- POST /generate-batch  : accepts an array of trace + details items, returns
+                          one file per failure mode (shared modes parametrised)
+- GET  /health          : liveness probe
 
 The Gemini client is injected through FastAPI's dependency-override hook so
 tests can swap in a fake without monkeypatching the module.
@@ -41,6 +45,7 @@ from .synthesiser import (
     GeminiClient,
     TraceData,
     synthesise,
+    synthesise_many,
 )
 
 # Cap on the raw POST body, defends against accidental megabyte pastes that
@@ -153,6 +158,54 @@ EXAMPLE_DETAILS_JSON = (
     '"key_strings_to_exclude": ["Berlin"], "key_patterns_required": ["Paris"]}'
 )
 
+# A multi-trace example for the batch form. Two traces share the "hallucination"
+# failure mode (folded into one parametrised test) and one is a "format_break",
+# so a first-time visitor sees grouping in a single click.
+EXAMPLE_BATCH_JSON = json.dumps(
+    [
+        {
+            "trace": {
+                "user_prompt": "What is the capital of France?",
+                "llm_output": "The capital of France is Berlin.",
+            },
+            "details": {
+                "failure_mode": "hallucination",
+                "evidence": "answered Berlin",
+                "expected_behavior": "should answer Paris",
+                "assertion_strategy": "substring_excluded",
+                "key_strings_to_exclude": ["Berlin"],
+                "key_patterns_required": ["Paris"],
+            },
+        },
+        {
+            "trace": {
+                "user_prompt": "Who painted the Mona Lisa?",
+                "llm_output": "The Mona Lisa was painted by Picasso.",
+            },
+            "details": {
+                "failure_mode": "hallucination",
+                "evidence": "answered Picasso",
+                "expected_behavior": "should answer Leonardo da Vinci",
+                "assertion_strategy": "substring_excluded",
+                "key_strings_to_exclude": ["Picasso"],
+            },
+        },
+        {
+            "trace": {
+                "user_prompt": "Return the result as JSON.",
+                "llm_output": 'Here is your data: ```json\n{"ok": true}\n```',
+            },
+            "details": {
+                "failure_mode": "format_break",
+                "evidence": "wrapped JSON in markdown fences",
+                "expected_behavior": "emit raw JSON with no markdown",
+                "assertion_strategy": "must_parse_as_json",
+            },
+        },
+    ],
+    indent=2,
+)
+
 # ruff: noqa: E501 (HTML payload kept verbatim for browser rendering)
 # Shared inline style for the form and result pages. Inline + dependency-free so
 # the demo loads instantly and works under a strict CSP with no external assets.
@@ -200,7 +253,7 @@ _FORM_HTML = """<!DOCTYPE html>
       <button type="submit">Generate pytest file</button>
     </form>
   </main>
-  <footer>Source: <a href="https://github.com/golikovichev/phoenix2pytest">github.com/golikovichev/phoenix2pytest</a></footer>
+  <footer>Many traces at once? <a href="/batch">Use the batch form</a>. Source: <a href="https://github.com/golikovichev/phoenix2pytest">github.com/golikovichev/phoenix2pytest</a></footer>
 </body>
 </html>
 """
@@ -213,6 +266,48 @@ def form_page() -> str:
         _FORM_HTML.replace("__STYLE__", _STYLE)
         .replace("__TRACE_EXAMPLE__", html.escape(EXAMPLE_TRACE_JSON))
         .replace("__DETAILS_EXAMPLE__", html.escape(EXAMPLE_DETAILS_JSON))
+    )
+
+
+@app.get("/health")
+def health() -> JSONResponse:
+    """Lightweight liveness probe for uptime monitors and the judging window."""
+    return JSONResponse({"status": "ok"})
+
+
+_BATCH_FORM_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>phoenix2pytest: batch trace to pytest</title>
+  <style>__STYLE__</style>
+</head>
+<body>
+  <main class="card">
+    <h1>phoenix2pytest: batch</h1>
+    <p class="tagline">Turn several annotated failure traces into pytest files in one click.</p>
+    <p class="hint">An example with three traces is pre-filled below: just click Generate. Traces that share a failure mode are folded into one parametrised test.</p>
+
+    <form method="post" action="/generate-batch">
+      <label for="items_json">Traces JSON (array of {trace, details})</label>
+      <textarea id="items_json" name="items_json" rows="20" required>__BATCH_EXAMPLE__</textarea>
+      <div class="hint">Each item: trace.user_prompt (required) + details.failure_mode (required).</div>
+
+      <button type="submit">Generate pytest files</button>
+    </form>
+  </main>
+  <footer>Single trace? <a href="/">Use the single-trace form</a>. Source: <a href="https://github.com/golikovichev/phoenix2pytest">github.com/golikovichev/phoenix2pytest</a></footer>
+</body>
+</html>
+"""
+
+
+@app.get("/batch", response_class=HTMLResponse)
+def batch_form_page() -> str:
+    """Render the multi-trace batch form, pre-filled with a runnable example array."""
+    return _BATCH_FORM_HTML.replace("__STYLE__", _STYLE).replace(
+        "__BATCH_EXAMPLE__", html.escape(EXAMPLE_BATCH_JSON)
     )
 
 
@@ -301,6 +396,87 @@ def generate(
         f'<p class="tagline">Failure mode: {safe_mode}</p>'
         f"<pre>{safe_code}</pre>"
         '<p><a href="/">Generate another</a></p>'
+        "</main></body></html>"
+    )
+    return HTMLResponse(body)
+
+
+def _trace_and_details_from_item(item: dict) -> tuple[TraceData, FailureDetails]:
+    """Validate one batch item and build its TraceData + FailureDetails.
+
+    Raises a 400 HTTPException with a clear message when required fields are
+    missing, mirroring the single-trace endpoint's contract.
+    """
+    if not isinstance(item, dict):
+        raise HTTPException(status_code=400, detail="each item must be a JSON object")
+    trace_payload = item.get("trace") or {}
+    details_payload = item.get("details") or {}
+    if not isinstance(trace_payload, dict) or not isinstance(details_payload, dict):
+        raise HTTPException(
+            status_code=400, detail="each item needs object 'trace' and 'details' fields"
+        )
+    if not trace_payload.get("user_prompt"):
+        raise HTTPException(status_code=400, detail="trace.user_prompt is required for every item")
+    if not details_payload.get("failure_mode"):
+        raise HTTPException(
+            status_code=400, detail="details.failure_mode is required for every item"
+        )
+    trace = TraceData(
+        user_prompt=str(trace_payload["user_prompt"]),
+        llm_output=str(trace_payload.get("llm_output") or ""),
+        span_id=str(trace_payload.get("span_id") or ""),
+    )
+    return trace, FailureDetails.from_dict(details_payload)
+
+
+@app.post("/generate-batch", response_model=None)
+def generate_batch(
+    request: Request,
+    items_json: Annotated[str, Form()],
+    client: Annotated[GeminiClient, Depends(get_client)],
+    _: Annotated[None, Depends(require_api_token)] = None,
+) -> JSONResponse | HTMLResponse:
+    """Synthesise pytest files from many annotated traces in one request.
+
+    Accepts a JSON array of ``{"trace": {...}, "details": {...}}`` items, groups
+    them by failure mode (folding shared modes into one parametrised test), and
+    returns one generated file per distinct failure mode. JSON when the Accept
+    header asks for it, otherwise an inline HTML view of every group.
+    """
+    try:
+        parsed = json.loads(items_json)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"items_json is not valid JSON: {exc.msg} at column {exc.colno}",
+        ) from exc
+    if not isinstance(parsed, list):
+        raise HTTPException(status_code=400, detail="items_json must be a JSON array")
+    if not parsed:
+        raise HTTPException(status_code=400, detail="items_json must contain at least one item")
+
+    items = [_trace_and_details_from_item(item) for item in parsed]
+    files = synthesise_many(items, client, model=DEFAULT_MODEL)
+
+    if _client_wants_json(request.headers.get("accept") or ""):
+        return JSONResponse({"model": DEFAULT_MODEL, "files": files})
+
+    # Both slug and code are derived from user-controlled JSON; escape before
+    # interpolating into the response template.
+    sections = "".join(
+        f"<h2>{html.escape(slug)}</h2><pre>{html.escape(code)}</pre>"
+        for slug, code in files.items()
+    )
+    body = (
+        '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        "<title>phoenix2pytest: generated tests</title>"
+        "<style>" + _STYLE + "</style></head><body>"
+        '<main class="card">'
+        f"<h1>Generated pytest files</h1>"
+        f'<p class="tagline">{len(files)} file(s) from {len(parsed)} trace(s)</p>'
+        f"{sections}"
+        '<p><a href="/batch">Generate another batch</a></p>'
         "</main></body></html>"
     )
     return HTMLResponse(body)
