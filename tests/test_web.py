@@ -226,6 +226,20 @@ def test_configure_client_installs_client_for_runtime() -> None:
     assert web.get_client() is stub
 
 
+def test_pages_share_single_batch_nav() -> None:
+    """Both forms render the shared brand + Single/Batch nav for cohesion."""
+    client = TestClient(web.app)
+    single = client.get("/").text
+    batch = client.get("/batch").text
+    for page in (single, batch):
+        assert 'class="nav"' in page
+        assert 'href="/"' in page
+        assert 'href="/batch"' in page
+    # The active tab differs per page.
+    assert 'href="/" class="active"' in single
+    assert 'href="/batch" class="active"' in batch
+
+
 def test_health_endpoint_returns_ok() -> None:
     """A lightweight /health endpoint lets uptime probes confirm the service."""
     client = TestClient(web.app)

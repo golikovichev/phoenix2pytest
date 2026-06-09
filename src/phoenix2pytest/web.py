@@ -225,7 +225,33 @@ _STYLE = """
   pre { background: var(--code-bg); color: var(--code-ink); padding: 1rem 1.1rem; border-radius: 10px; overflow-x: auto; font-size: .85rem; line-height: 1.45; }
   a { color: var(--accent); }
   footer { max-width: 820px; margin: 1rem auto 0; color: var(--muted); font-size: .85rem; }
+  .topbar { max-width: 820px; margin: 0 auto 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; font-size: 1.2rem; letter-spacing: -.01em; }
+  .brand .mark { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #fff; background: var(--accent); padding: .15rem .45rem; border-radius: 7px; font-size: .95rem; }
+  .nav { display: flex; gap: .3rem; }
+  .nav a { padding: .4rem .85rem; border-radius: 8px; text-decoration: none; color: var(--muted); font-weight: 600; font-size: .9rem; border: 1px solid transparent; }
+  .nav a.active { background: var(--accent); color: #fff; }
+  .nav a:hover:not(.active) { border-color: var(--border); background: var(--card); }
+  h2 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; color: var(--ink); }
 """
+
+
+def _topbar(active: str) -> str:
+    """Shared brand + Single/Batch nav, rendered on every page for cohesion.
+
+    ``active`` is "single" or "batch" and marks the matching tab.
+    """
+    single = ' class="active"' if active == "single" else ""
+    batch = ' class="active"' if active == "batch" else ""
+    return (
+        '<div class="topbar">'
+        '<div class="brand"><span class="mark">{ }</span>phoenix2pytest</div>'
+        '<nav class="nav">'
+        f'<a href="/"{single}>Single trace</a>'
+        f'<a href="/batch"{batch}>Batch</a>'
+        "</nav></div>"
+    )
+
 
 _FORM_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -236,6 +262,7 @@ _FORM_HTML = """<!DOCTYPE html>
   <style>__STYLE__</style>
 </head>
 <body>
+  __TOPBAR__
   <main class="card">
     <h1>phoenix2pytest</h1>
     <p class="tagline">Turn a production LLM failure trace into a runnable pytest regression test.</p>
@@ -264,6 +291,7 @@ def form_page() -> str:
     """Render the paste-and-submit HTML form, pre-filled with a runnable example."""
     return (
         _FORM_HTML.replace("__STYLE__", _STYLE)
+        .replace("__TOPBAR__", _topbar("single"))
         .replace("__TRACE_EXAMPLE__", html.escape(EXAMPLE_TRACE_JSON))
         .replace("__DETAILS_EXAMPLE__", html.escape(EXAMPLE_DETAILS_JSON))
     )
@@ -284,6 +312,7 @@ _BATCH_FORM_HTML = """<!DOCTYPE html>
   <style>__STYLE__</style>
 </head>
 <body>
+  __TOPBAR__
   <main class="card">
     <h1>phoenix2pytest: batch</h1>
     <p class="tagline">Turn several annotated failure traces into pytest files in one click.</p>
@@ -306,8 +335,10 @@ _BATCH_FORM_HTML = """<!DOCTYPE html>
 @app.get("/batch", response_class=HTMLResponse)
 def batch_form_page() -> str:
     """Render the multi-trace batch form, pre-filled with a runnable example array."""
-    return _BATCH_FORM_HTML.replace("__STYLE__", _STYLE).replace(
-        "__BATCH_EXAMPLE__", html.escape(EXAMPLE_BATCH_JSON)
+    return (
+        _BATCH_FORM_HTML.replace("__STYLE__", _STYLE)
+        .replace("__TOPBAR__", _topbar("batch"))
+        .replace("__BATCH_EXAMPLE__", html.escape(EXAMPLE_BATCH_JSON))
     )
 
 
@@ -390,8 +421,7 @@ def generate(
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         "<title>phoenix2pytest: generated test</title>"
-        "<style>" + _STYLE + "</style></head><body>"
-        '<main class="card">'
+        "<style>" + _STYLE + "</style></head><body>" + _topbar("single") + '<main class="card">'
         f"<h1>Generated pytest</h1>"
         f'<p class="tagline">Failure mode: {safe_mode}</p>'
         f"<pre>{safe_code}</pre>"
@@ -471,8 +501,7 @@ def generate_batch(
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         "<title>phoenix2pytest: generated tests</title>"
-        "<style>" + _STYLE + "</style></head><body>"
-        '<main class="card">'
+        "<style>" + _STYLE + "</style></head><body>" + _topbar("batch") + '<main class="card">'
         f"<h1>Generated pytest files</h1>"
         f'<p class="tagline">{len(files)} file(s) from {len(parsed)} trace(s)</p>'
         f"{sections}"

@@ -12,6 +12,8 @@
 
 **Built for:** [Google Cloud Rapid Agent Hackathon, Arize track](https://rapid-agent.devpost.com/)
 
+**Live demo:** [phoenix2pytest-etm7pvfo3a-nw.a.run.app](https://phoenix2pytest-etm7pvfo3a-nw.a.run.app/) - the example is pre-filled, just click Generate. Single trace at `/`, batch at `/batch`.
+
 **Stack:** Google Cloud, Vertex AI, Gemini 2.5, Agent Builder, Arize Phoenix MCP, FastAPI, pytest
 
 > **Status:** Alpha (v0.1.0). Built for the Devpost submission cycle ending June 2026.
