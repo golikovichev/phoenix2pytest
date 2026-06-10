@@ -10,6 +10,8 @@
 
 > Turn production LLM failures into regression tests. Automatically.
 
+![phoenix2pytest demo](assets/demo.gif)
+
 **Built for:** [Google Cloud Rapid Agent Hackathon, Arize track](https://rapid-agent.devpost.com/)
 
 **Live demo:** [phoenix2pytest-etm7pvfo3a-nw.a.run.app](https://phoenix2pytest-etm7pvfo3a-nw.a.run.app/) - the example is pre-filled, just click Generate. Single trace at `/`, batch at `/batch`.
