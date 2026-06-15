@@ -3,6 +3,7 @@
 [![CI](https://github.com/golikovichev/phoenix2pytest/actions/workflows/ci.yml/badge.svg)](https://github.com/golikovichev/phoenix2pytest/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/golikovichev/phoenix2pytest/actions/workflows/codeql.yml/badge.svg)](https://github.com/golikovichev/phoenix2pytest/actions/workflows/codeql.yml)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13011/badge)](https://www.bestpractices.dev/projects/13011)
+[![Tessl](https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.tessl.io%2Fv1%2Fbadges%2Fgolikovichev%2Fphoenix2pytest)](https://tessl.io/registry/golikovichev/phoenix2pytest)
 [![codecov](https://codecov.io/gh/golikovichev/phoenix2pytest/branch/main/graph/badge.svg)](https://codecov.io/gh/golikovichev/phoenix2pytest)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
