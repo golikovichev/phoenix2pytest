@@ -1,0 +1,8 @@
+{
+  "name": "golikovichev/phoenix2pytest",
+  "description": "Turn labeled LLM failure traces from an Arize Phoenix project into runnable pytest regression tests using the phoenix2pytest pipeline. Use when the user has an LLM application emitting OpenInference spans to Phoenix and wants a regression suite from real production failures, when extracting test cases from observed LLM bugs (hallucination, format break, off-topic drift, stale data, wrong reasoning, refusal bug), when bridging Phoenix-labeled traces into pytest-based suites for CI, when the user mentions Arize Phoenix MCP, OpenInference instrumentation, LLM observability, Gemini test synthesis, Vertex AI agent evaluation, or wants to react to LLM failures rather than predict them upfront.",
+  "skills": [
+    "."
+  ],
+  "version": "0.1.1"
+}
