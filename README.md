@@ -157,6 +157,10 @@ The roadmap covers paraphrase tolerance via embedding-similarity assertions (pos
 - **v0.3**: multi-turn trace handling.
 - **v0.4**: PyPI release with `phoenix2pytest` console-script CLI and broader documentation.
 
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the workflow.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
