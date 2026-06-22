@@ -19,7 +19,7 @@
 
 **Stack:** Google Cloud, Vertex AI, Gemini 2.5, Agent Builder, Arize Phoenix MCP, FastAPI, pytest
 
-> **Status:** Alpha (v0.1.0). Built for the Devpost submission cycle ending June 2026.
+> **Status:** Stable (v1.0.0). Originally built for the Devpost submission cycle of June 2026, now stable within the documented scope (see Limits).
 
 ---
 
@@ -67,7 +67,7 @@ The orchestrator runs on Cloud Run, fetches traces through the Arize Phoenix MCP
 
 ## Quickstart
 
-The web UI is the primary entry point during the hackathon. A console-script CLI is on the roadmap (see below).
+The web UI is the primary entry point. A console-script CLI is planned (see roadmap).
 
 **Local web UI:**
 
@@ -136,7 +136,7 @@ You can use phoenix2pytest alongside the others. It does not compete with eval f
 - Failures that only appear in long context or multi-turn flows
 - Subtle quality degradations without a clear bad-string pattern
 
-The roadmap covers paraphrase tolerance via embedding-similarity assertions (post-hackathon).
+The roadmap covers paraphrase tolerance via embedding-similarity assertions.
 
 ## Limits
 
@@ -148,14 +148,14 @@ The roadmap covers paraphrase tolerance via embedding-similarity assertions (pos
 
 - The synthesised pytest is a starting point, not a final test. Engineers review it before commit.
 - The agent does not auto-classify random traces. It works on traces already labeled as failures (manual annotation, eval framework, or heuristic). This is intentional. Automatic failure detection on raw traces is not reliable for hallucinations of facts the classifier itself cannot verify.
-- Built solo by one engineer for a hackathon submission. Production hardening is on the roadmap, not yet done.
+- Built and maintained solo. The scope is deliberately narrow (see Limits) and stable within it; the roadmap covers where it grows next.
 
 ## Roadmap
 
-- **v0.1** (hackathon submission, June 2026): one-trace and many-trace generation, hallucination + format_break + refusal_bug + stale_data + wrong_reasoning + off_topic_drift coverage, Cloud Run hosting, web UI.
-- **v0.2**: paraphrase-tolerant assertions via embedding similarity.
-- **v0.3**: multi-turn trace handling.
-- **v0.4**: PyPI release with `phoenix2pytest` console-script CLI and broader documentation.
+- **v1.0** (June 2026): one-trace and many-trace generation; hallucination, format_break, refusal_bug, stale_data, wrong_reasoning, and off_topic_drift coverage; Cloud Run hosting; web UI; generated code is validated as parseable Python before it is returned.
+- **v1.1**: paraphrase-tolerant assertions via embedding similarity.
+- **v1.2**: multi-turn trace handling.
+- **v1.3**: `phoenix2pytest` console-script CLI and broader documentation.
 
 ## Contributing
 

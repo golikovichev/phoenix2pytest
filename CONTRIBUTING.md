@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in phoenix2pytest. This is a small alpha project shipped during the Google Cloud Rapid Agent Hackathon, so the contribution flow is light.
+Thanks for your interest in phoenix2pytest. This is a small, solo-maintained project, so the contribution flow is light.
 
 ## Reporting a bug
 

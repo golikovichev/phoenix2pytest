@@ -23,7 +23,7 @@ phoenix2pytest pipeline
 Commit generated test, run in CI
 ```
 
-The vertical-slice CLI that runs steps 1-4 end-to-end ships in 0.2.0 (target 2026-06-10). In 0.1.0, web UI at `phoenix2pytest.web:app` provides the same flow interactively.
+A console-script CLI that runs steps 1-4 end-to-end is planned for a later release (see the README roadmap). In 1.0, the web UI at `phoenix2pytest.web:app` provides the same flow interactively.
 
 ## Demo dataset (`tests/data/demo_dataset.json`)
 

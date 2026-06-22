@@ -6,7 +6,7 @@ metadata:
   category: "ai-testing"
   homepage: "https://github.com/golikovichev/phoenix2pytest"
   pypi: "https://github.com/golikovichev/phoenix2pytest"
-  version: "0.1.0"
+  version: "1.0.0"
 ---
 
 # phoenix2pytest
