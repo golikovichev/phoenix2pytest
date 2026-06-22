@@ -14,6 +14,7 @@ stripped defensively so the file can be written to disk and run as-is.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -224,6 +225,31 @@ def strip_markdown_fences(raw: str) -> str:
     return cleaned.strip() + "\n"
 
 
+class SynthesisError(RuntimeError):
+    """Raised when the model returns text that is not valid Python.
+
+    The synthesiser's whole promise is a file you can run as-is. An LLM that
+    ignores the "code only" instruction and replies with prose, an apology,
+    or truncated source would otherwise be written to disk as a broken .py
+    and only fail when the user tries to run it. Failing here, with the
+    failure mode named, turns a silent bad artifact into an actionable error.
+    """
+
+
+def _ensure_valid_python(code: str, *, context: str) -> str:
+    """Return ``code`` unchanged if it parses as Python, else raise.
+
+    Uses :func:`ast.parse`, which checks syntax without executing anything.
+    """
+    try:
+        ast.parse(code)
+    except SyntaxError as exc:
+        raise SynthesisError(
+            f"synthesised code for {context} is not valid Python: {exc.msg} (line {exc.lineno})"
+        ) from exc
+    return code
+
+
 def synthesise(
     trace: TraceData,
     details: FailureDetails,
@@ -236,10 +262,14 @@ def synthesise(
     The function is pure given the client: same trace + same details + same
     model name reach the model with the same prompt. Determinism after that
     point depends on the underlying Gemini call.
+
+    Raises :class:`SynthesisError` when the model's reply is not valid Python,
+    so a misbehaving model never yields a broken test file written to disk.
     """
     user_msg = build_user_message(trace, details)
     raw = client.generate_text(model=model, system=SYSTEM_PROMPT, user=user_msg)
-    return strip_markdown_fences(raw or "")
+    code = strip_markdown_fences(raw or "")
+    return _ensure_valid_python(code, context=details.failure_mode or "unknown")
 
 
 _SANITISE = re.compile(r"[^a-z0-9_]")
@@ -270,6 +300,10 @@ def synthesise_many(
     Returns a mapping ``{failure_mode_slug: pytest_source}`` with one entry
     per distinct failure mode. Insertion order follows first occurrence of
     each failure mode in ``items``.
+
+    Failure is all-or-nothing: if any group's reply is not valid Python this
+    raises :class:`SynthesisError` and no partial mapping is returned, so the
+    caller never gets a batch with a silently missing or broken entry.
     """
     if not items:
         return {}
@@ -291,7 +325,8 @@ def synthesise_many(
         else:
             user_msg = build_user_message_for_group(traces, details)
         raw = client.generate_text(model=model, system=SYSTEM_PROMPT, user=user_msg)
-        output[slug] = strip_markdown_fences(raw or "")
+        code = strip_markdown_fences(raw or "")
+        output[slug] = _ensure_valid_python(code, context=slug)
     return output
 
 

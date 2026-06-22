@@ -16,10 +16,12 @@ from phoenix2pytest.synthesiser import (
     SYSTEM_PROMPT,
     FailureDetails,
     GeminiClient,
+    SynthesisError,
     TraceData,
     build_user_message,
     strip_markdown_fences,
     synthesise,
+    synthesise_many,
     write_test_file,
 )
 
@@ -129,6 +131,26 @@ def test_synthesise_strips_markdown_fences_from_model_output(trace, details):
     code = synthesise(trace, details, stub)
     assert "```" not in code
     assert code.startswith("import pytest")
+
+
+def test_synthesise_raises_on_invalid_python(trace, details):
+    # The model misbehaved and returned prose / broken syntax instead of code.
+    # We must fail loudly, not write a broken .py file the user would run.
+    stub = _StubGemini(reply="Sure! Here is your test: def (oops not valid")
+    with pytest.raises(SynthesisError):
+        synthesise(trace, details, stub)
+
+
+def test_synthesise_accepts_valid_python(trace, details):
+    stub = _StubGemini(reply="import pytest\n\ndef test_x():\n    assert True\n")
+    code = synthesise(trace, details, stub)
+    assert "test_x" in code
+
+
+def test_synthesise_many_raises_on_invalid_python(trace, details):
+    stub = _StubGemini(reply="def broken(:\n    pass\n")
+    with pytest.raises(SynthesisError):
+        synthesise_many([(trace, details)], stub)
 
 
 def test_write_test_file_sanitises_failure_mode_in_filename(tmp_path):

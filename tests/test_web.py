@@ -91,6 +91,24 @@ def test_generate_returns_html_with_generated_code(client_with_stub) -> None:
     assert "What is 2+2?" in stub.calls[0]["user"]
 
 
+def test_generate_returns_502_when_model_emits_invalid_python() -> None:
+    # Model ignored "code only" and returned prose: the endpoint must surface a
+    # clear 502, not 500 or a downloadable broken .py file.
+    stub = _StubGemini(reply="Sure! Here is your test: def (oops not valid")
+    web.app.dependency_overrides[web.get_client] = lambda: stub
+    client = TestClient(web.app)
+    trace_json = json.dumps({"user_prompt": "What is 2+2?"})
+    details_json = json.dumps(
+        {"failure_mode": "hallucination", "assertion_strategy": "substring_excluded"}
+    )
+    response = client.post(
+        "/generate",
+        data={"trace_json": trace_json, "details_json": details_json},
+    )
+    assert response.status_code == 502
+    assert "not valid Python" in response.text
+
+
 def test_generate_returns_json_when_accept_header_requests_json(client_with_stub) -> None:
     client, stub = client_with_stub
     trace_json = json.dumps({"user_prompt": "Tell me a fact about cats"})
@@ -293,6 +311,18 @@ def test_generate_batch_groups_by_failure_mode_in_html(client_with_stub) -> None
     # The summary reports generated files vs input traces (the value of batch:
     # 3 traces folded into 2 files), not a tautology.
     assert "2 file(s) from 3 trace(s)" in response.text
+
+
+def test_generate_batch_returns_502_when_model_emits_invalid_python() -> None:
+    # Mirror of the single-endpoint 502 test for the batch path: a prose reply
+    # must surface a 502, not a 500 or a batch with a broken entry.
+    stub = _StubGemini(reply="Sure! Here is your test: def (oops not valid")
+    web.app.dependency_overrides[web.get_client] = lambda: stub
+    client = TestClient(web.app)
+    items_json = _batch_items(("What is 2+2?", "hallucination"))
+    response = client.post("/generate-batch", data={"items_json": items_json})
+    assert response.status_code == 502
+    assert "not valid Python" in response.text
 
 
 def test_generate_batch_returns_json_mapping_when_requested(client_with_stub) -> None:

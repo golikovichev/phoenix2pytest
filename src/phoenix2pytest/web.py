@@ -43,6 +43,7 @@ from .synthesiser import (
     DEFAULT_MODEL,
     FailureDetails,
     GeminiClient,
+    SynthesisError,
     TraceData,
     synthesise,
     synthesise_many,
@@ -402,7 +403,10 @@ def generate(
     )
     details = FailureDetails.from_dict(details_payload)
 
-    code = synthesise(trace, details, client, model=DEFAULT_MODEL)
+    try:
+        code = synthesise(trace, details, client, model=DEFAULT_MODEL)
+    except SynthesisError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     if _client_wants_json(request.headers.get("accept") or ""):
         return JSONResponse(
@@ -486,7 +490,10 @@ def generate_batch(
         raise HTTPException(status_code=400, detail="items_json must contain at least one item")
 
     items = [_trace_and_details_from_item(item) for item in parsed]
-    files = synthesise_many(items, client, model=DEFAULT_MODEL)
+    try:
+        files = synthesise_many(items, client, model=DEFAULT_MODEL)
+    except SynthesisError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     if _client_wants_json(request.headers.get("accept") or ""):
         return JSONResponse({"model": DEFAULT_MODEL, "files": files})
