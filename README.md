@@ -152,7 +152,7 @@ The roadmap covers paraphrase tolerance via embedding-similarity assertions.
 
 ## Roadmap
 
-- **v1.0** (June 2026): one-trace and many-trace generation; hallucination, format_break, refusal_bug, stale_data, wrong_reasoning, and off_topic_drift coverage; Cloud Run hosting; web UI; generated code is validated as parseable Python before it is returned.
+- **v1.0** (June 2026): one-trace and many-trace generation; hallucination, format_break, refusal_bug, stale_real_time_data, wrong_reasoning, and off_topic_drift coverage; Cloud Run hosting; web UI; generated code is validated as parseable Python before it is returned.
 - **v1.1**: paraphrase-tolerant assertions via embedding similarity.
 - **v1.2**: multi-turn trace handling.
 - **v1.3**: `phoenix2pytest` console-script CLI and broader documentation.

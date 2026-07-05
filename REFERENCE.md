@@ -6,20 +6,20 @@ Detailed pipeline architecture, pydantic schema, demo dataset structure, ingesti
 
 ```
 Your LLM app (LangChain, LlamaIndex, custom)
-    │ OpenInference OTEL spans
-    ▼
+    | OpenInference OTEL spans
+    v
 Arize Phoenix project (cloud or self-hosted)
-    │ Engineer reviews + labels
-    │   .phoenix2pytest.failure_mode = hallucination | format_break | ...
-    ▼
+    | Engineer reviews + labels
+    |   .phoenix2pytest.failure_mode = hallucination | format_break | ...
+    v
 phoenix2pytest pipeline
-    ├── 1. Fetch labeled trace via Phoenix MCP client
-    ├── 2. Gemini Flash extractor: identify what specifically broke
-    │      (evidence strings, expected behavior, assertion strategy)
-    ├── 3. Gemini Pro synthesiser: write runnable pytest file
-    └── 4. Write to generated_tests/test_<failure_mode>.py
-    │
-    ▼
+    |-- 1. Fetch labeled trace via Phoenix MCP client
+    |-- 2. Gemini Flash extractor: identify what specifically broke
+    |      (evidence strings, expected behavior, assertion strategy)
+    |-- 3. Gemini Pro synthesiser: write runnable pytest file
+    `-- 4. Write to generated_tests/test_<failure_mode>.py
+    |
+    v
 Commit generated test, run in CI
 ```
 
@@ -150,7 +150,7 @@ Hosted demo URL ships in 0.2.1 (target 2026-06-25).
 
 - **0.2.0** (target 2026-06-10): Wire vertical-slice pipeline into the package. CLI entry point `phoenix2pytest --project X --label hallucination`.
 - **0.2.1** (target 2026-06-25): Cloud Run hosted demo URL.
-- **0.2.x** (target 2026-06-30+): Tutorial cross-posts (Phoenix trace → pytest in 5 minutes; LangChain integration; LlamaIndex integration).
+- **0.2.x** (target 2026-06-30+): Tutorial cross-posts (Phoenix trace to pytest in 5 minutes; LangChain integration; LlamaIndex integration).
 - **0.3.0** (target 2026-07-20, post-15.07 GT submission): More failure mode handlers (`tool_use_error`, `multi_turn_memory_leak`, `temperature_instability`).
 
 ## External links
