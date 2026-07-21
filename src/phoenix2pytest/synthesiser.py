@@ -237,16 +237,33 @@ class SynthesisError(RuntimeError):
 
 
 def _ensure_valid_python(code: str, *, context: str) -> str:
-    """Return ``code`` unchanged if it parses as Python, else raise.
+    """Return ``code`` unchanged if it is a runnable pytest module, else raise.
 
-    Uses :func:`ast.parse`, which checks syntax without executing anything.
+    Two static checks (no execution):
+
+    1. the source parses as Python (:func:`ast.parse`);
+    2. it defines at least one ``test``-prefixed function.
+
+    Check 2 matters because an empty reply, a bare markdown fence, or an
+    imports-only stub all parse as valid-but-empty Python. Written to disk they
+    become a .py that pytest collects nothing from, a silent no-op instead of
+    the regression test the synthesiser promised. Rejecting them here turns that
+    silent bad artifact into an actionable error, same as a syntax error.
     """
     try:
-        ast.parse(code)
+        tree = ast.parse(code)
     except SyntaxError as exc:
         raise SynthesisError(
             f"synthesised code for {context} is not valid Python: {exc.msg} (line {exc.lineno})"
         ) from exc
+    has_test = any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test")
+        for node in ast.walk(tree)
+    )
+    if not has_test:
+        raise SynthesisError(
+            f"synthesised code for {context} defines no test function; pytest would collect nothing"
+        )
     return code
 
 

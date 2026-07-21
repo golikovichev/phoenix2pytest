@@ -147,6 +147,24 @@ def test_synthesise_accepts_valid_python(trace, details):
     assert "test_x" in code
 
 
+@pytest.mark.parametrize("reply", ["", "   \n  ", "```python\n```"])
+def test_synthesise_raises_on_empty_reply(trace, details, reply):
+    # An empty / whitespace / bare-fence reply parses as a valid but empty
+    # module. Without a guard it lands on disk as a test-less .py that pytest
+    # silently collects nothing from - the opposite of a regression test.
+    stub = _StubGemini(reply=reply)
+    with pytest.raises(SynthesisError):
+        synthesise(trace, details, stub)
+
+
+def test_synthesise_raises_on_testless_code(trace, details):
+    # Valid Python, but no test function (imports only). pytest would run
+    # nothing, so this is a broken artifact and must fail loudly.
+    stub = _StubGemini(reply="import os\nimport pytest\n")
+    with pytest.raises(SynthesisError):
+        synthesise(trace, details, stub)
+
+
 def test_synthesise_many_raises_on_invalid_python(trace, details):
     stub = _StubGemini(reply="def broken(:\n    pass\n")
     with pytest.raises(SynthesisError):
