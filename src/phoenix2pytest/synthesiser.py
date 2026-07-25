@@ -172,8 +172,27 @@ def build_default_client() -> GeminiClient:
     return VertexGeminiClient()
 
 
-def build_user_message(trace: TraceData, details: FailureDetails) -> str:
-    """Assemble the user-side prompt the model sees."""
+_PARAPHRASE_INSTRUCTION = (
+    "PARAPHRASE MODE: assert meaning, not exact strings. Import "
+    "`from phoenix2pytest.assertions import assert_paraphrase_similar`, give the "
+    "test function an `embedder` parameter (a pytest fixture the user provides), "
+    "and check the reply against the expected answer with "
+    "`assert_paraphrase_similar(actual, expected, embedder=embedder)` instead of "
+    "an exact `==` or substring match. Keep any non-text checks (JSON shape, "
+    "forbidden strings) as they are."
+)
+
+
+def build_user_message(
+    trace: TraceData, details: FailureDetails, *, paraphrase: bool = False
+) -> str:
+    """Assemble the user-side prompt the model sees.
+
+    When ``paraphrase`` is set, the prompt asks the model to assert embedding
+    similarity via ``assert_paraphrase_similar`` and an injected ``embedder``
+    fixture instead of an exact string match.
+    """
+    extra = f"\n{_PARAPHRASE_INSTRUCTION}\n" if paraphrase else ""
     return (
         f"USER PROMPT:\n{trace.user_prompt}\n\n"
         f"FAILURE MODE: {details.failure_mode}\n"
@@ -181,19 +200,25 @@ def build_user_message(trace: TraceData, details: FailureDetails) -> str:
         f"EXPECTED BEHAVIOR: {details.expected_behavior}\n"
         f"ASSERTION STRATEGY: {details.assertion_strategy}\n"
         f"STRINGS TO EXCLUDE: {json.dumps(details.key_strings_to_exclude or [])}\n"
-        f"PATTERNS REQUIRED: {json.dumps(details.key_patterns_required or [])}\n\n"
+        f"PATTERNS REQUIRED: {json.dumps(details.key_patterns_required or [])}\n"
+        f"{extra}\n"
         f"Generate the pytest file. Output only Python code."
     )
 
 
-def build_user_message_for_group(traces: list[TraceData], details: FailureDetails) -> str:
+def build_user_message_for_group(
+    traces: list[TraceData], details: FailureDetails, *, paraphrase: bool = False
+) -> str:
     """Assemble the prompt for a group of traces that share one failure mode.
 
     Asks the model to emit a single pytest module that parametrises the test
     function over the user prompts in the group. The assertion strategy and
-    failure mode are identical across the group, only the inputs differ.
+    failure mode are identical across the group, only the inputs differ. When
+    ``paraphrase`` is set, the same embedding-similarity instruction as the
+    single-trace prompt is appended.
     """
     prompts_json = json.dumps([t.user_prompt for t in traces], ensure_ascii=False, indent=2)
+    extra = f"\n{_PARAPHRASE_INSTRUCTION}\n" if paraphrase else ""
     return (
         f"USER PROMPTS (multiple inputs that all trigger this failure):\n"
         f"{prompts_json}\n\n"
@@ -202,7 +227,8 @@ def build_user_message_for_group(traces: list[TraceData], details: FailureDetail
         f"EXPECTED BEHAVIOR: {details.expected_behavior}\n"
         f"ASSERTION STRATEGY: {details.assertion_strategy}\n"
         f"STRINGS TO EXCLUDE: {json.dumps(details.key_strings_to_exclude or [])}\n"
-        f"PATTERNS REQUIRED: {json.dumps(details.key_patterns_required or [])}\n\n"
+        f"PATTERNS REQUIRED: {json.dumps(details.key_patterns_required or [])}\n"
+        f"{extra}\n"
         f"Emit a single pytest module with one @pytest.mark.parametrize "
         f"function that covers ALL prompts above. The test signature should "
         f"accept the prompt as a parameter. Output only Python code."
@@ -273,6 +299,7 @@ def synthesise(
     client: GeminiClient,
     *,
     model: str = DEFAULT_MODEL,
+    paraphrase: bool = False,
 ) -> str:
     """Produce the pytest source for a single failure trace.
 
@@ -283,7 +310,7 @@ def synthesise(
     Raises :class:`SynthesisError` when the model's reply is not valid Python,
     so a misbehaving model never yields a broken test file written to disk.
     """
-    user_msg = build_user_message(trace, details)
+    user_msg = build_user_message(trace, details, paraphrase=paraphrase)
     raw = client.generate_text(model=model, system=SYSTEM_PROMPT, user=user_msg)
     code = strip_markdown_fences(raw or "")
     return _ensure_valid_python(code, context=details.failure_mode or "unknown")
@@ -306,6 +333,7 @@ def synthesise_many(
     client: GeminiClient,
     *,
     model: str = DEFAULT_MODEL,
+    paraphrase: bool = False,
 ) -> dict[str, str]:
     """Synthesise tests for many trace + details pairs grouped by failure mode.
 
@@ -338,9 +366,9 @@ def synthesise_many(
     output: dict[str, str] = {}
     for slug, (traces, details) in groups.items():
         if len(traces) == 1:
-            user_msg = build_user_message(traces[0], details)
+            user_msg = build_user_message(traces[0], details, paraphrase=paraphrase)
         else:
-            user_msg = build_user_message_for_group(traces, details)
+            user_msg = build_user_message_for_group(traces, details, paraphrase=paraphrase)
         raw = client.generate_text(model=model, system=SYSTEM_PROMPT, user=user_msg)
         code = strip_markdown_fences(raw or "")
         output[slug] = _ensure_valid_python(code, context=slug)

@@ -50,6 +50,9 @@ dev = [
     "ruff>=0.7.0",
 ]
 
+[project.scripts]
+phoenix2pytest = "phoenix2pytest.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/golikovichev/phoenix2pytest"
 Repository = "https://github.com/golikovichev/phoenix2pytest"
@@ -68,6 +71,7 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/*.py" = ["E501"]  # demo scripts contain long LLM prompt strings
+"src/phoenix2pytest/extractor.py" = ["E501"]  # holds a long LLM prompt string
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

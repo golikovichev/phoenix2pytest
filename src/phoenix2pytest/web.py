@@ -39,6 +39,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from .loader import TraceLoadError, parse_item
 from .synthesiser import (
     DEFAULT_MODEL,
     FailureDetails,
@@ -438,29 +439,15 @@ def generate(
 def _trace_and_details_from_item(item: dict) -> tuple[TraceData, FailureDetails]:
     """Validate one batch item and build its TraceData + FailureDetails.
 
-    Raises a 400 HTTPException with a clear message when required fields are
-    missing, mirroring the single-trace endpoint's contract.
+    Delegates validation to the shared :func:`phoenix2pytest.loader.parse_item`
+    so the web batch endpoint and the offline CLI accept exactly the same item
+    shape, and translates its :class:`TraceLoadError` into a 400 to keep this
+    endpoint's HTTP contract.
     """
-    if not isinstance(item, dict):
-        raise HTTPException(status_code=400, detail="each item must be a JSON object")
-    trace_payload = item.get("trace") or {}
-    details_payload = item.get("details") or {}
-    if not isinstance(trace_payload, dict) or not isinstance(details_payload, dict):
-        raise HTTPException(
-            status_code=400, detail="each item needs object 'trace' and 'details' fields"
-        )
-    if not trace_payload.get("user_prompt"):
-        raise HTTPException(status_code=400, detail="trace.user_prompt is required for every item")
-    if not details_payload.get("failure_mode"):
-        raise HTTPException(
-            status_code=400, detail="details.failure_mode is required for every item"
-        )
-    trace = TraceData(
-        user_prompt=str(trace_payload["user_prompt"]),
-        llm_output=str(trace_payload.get("llm_output") or ""),
-        span_id=str(trace_payload.get("span_id") or ""),
-    )
-    return trace, FailureDetails.from_dict(details_payload)
+    try:
+        return parse_item(item)
+    except TraceLoadError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/generate-batch", response_model=None)

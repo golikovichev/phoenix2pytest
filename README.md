@@ -67,7 +67,24 @@ The orchestrator runs on Cloud Run, fetches traces through the Arize Phoenix MCP
 
 ## Quickstart
 
-The web UI is the primary entry point. A console-script CLI is planned (see roadmap).
+The web UI is the primary entry point. The `phoenix2pytest` console CLI covers headless and CI runs.
+
+**CLI:**
+
+```bash
+# Generate tests from traces you flagged in a live Phoenix project
+phoenix2pytest --label hallucination --out tests/
+
+# Or work offline from a saved traces file (same shape as the batch web endpoint)
+phoenix2pytest --from-file traces.json --dry-run
+
+# Assert meaning instead of exact strings
+phoenix2pytest --from-file traces.json --paraphrase --out tests/
+```
+
+The live path reads `PHOENIX_HOST`, `PHOENIX_API_KEY`, and optional
+`PHOENIX_PROJECT` from the environment, the same as the web service. Exit code 2
+means no flagged traces were found.
 
 **Local web UI:**
 
@@ -136,7 +153,10 @@ You can use phoenix2pytest alongside the others. It does not compete with eval f
 - Failures that only appear in long context or multi-turn flows
 - Subtle quality degradations without a clear bad-string pattern
 
-The roadmap covers paraphrase tolerance via embedding-similarity assertions.
+The `--paraphrase` flag generates assertions that tolerate a reworded answer,
+comparing embedding similarity instead of exact strings. It changes how a
+generated test asserts; it does not by itself detect paraphrased failures in a
+trace.
 
 ## Limits
 
@@ -153,9 +173,9 @@ The roadmap covers paraphrase tolerance via embedding-similarity assertions.
 ## Roadmap
 
 - **v1.0** (June 2026): one-trace and many-trace generation; hallucination, format_break, refusal_bug, stale_real_time_data, wrong_reasoning, and off_topic_drift coverage; Cloud Run hosting; web UI; generated code is validated as parseable Python before it is returned.
-- **v1.1**: paraphrase-tolerant assertions via embedding similarity.
+- **v1.1** (shipped): the `phoenix2pytest` console CLI with a live-Phoenix and an offline traces-file mode, and paraphrase-tolerant assertions via embedding similarity.
 - **v1.2**: multi-turn trace handling.
-- **v1.3**: `phoenix2pytest` console-script CLI and broader documentation.
+- **v1.3**: broader documentation and worked examples.
 
 ## Contributing
 

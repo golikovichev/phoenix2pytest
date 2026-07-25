@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow semantic versioning.
 
+## [Unreleased]
+
+### Added
+- `phoenix2pytest` console CLI. Generate tests without the web UI: read flagged
+  traces from a live Phoenix project (`--label MODE`) or a saved JSON file
+  (`--from-file PATH`), write them into `--out DIR`, or print them with
+  `--dry-run`. Exit code 2 means "no flagged traces found", so a CI job can tell
+  an empty run from a productive one.
+- Offline traces-file input (`--from-file`). Reads the same item shape the batch
+  web endpoint accepts (a JSON list of `{"trace": ..., "details": ...}` objects),
+  so a captured payload runs through the CLI with no Phoenix server. The web
+  batch endpoint and the CLI now share one validator, `loader.parse_item`.
+- Paraphrase-tolerant assertions (`--paraphrase`). The synthesiser emits tests
+  that assert embedding similarity through `assert_paraphrase_similar` and an
+  injected `embedder` fixture instead of an exact string match. The new
+  `phoenix2pytest.assertions` module ships the helper and a lazily built default
+  embedder over google-genai; a test can inject a stub to stay deterministic and
+  offline. When `--paraphrase` writes files, the CLI also drops a `conftest.py`
+  with a ready `embedder` fixture (never overwriting an existing one), so the
+  generated tests run without hand-wiring.
+- `phoenix2pytest.extractor` module. The Gemini step that turns an annotated
+  span into a `FailureDetails` moved from the demo script into the package, with
+  a stub-injectable client so it is unit tested.
+
 ## [1.0.0] - 2026-06
 
 First stable release. The pipeline (Phoenix trace -> Gemini extractor -> synthesiser -> pytest file) is stable within the documented scope; see the Limits section in `README.md`.
