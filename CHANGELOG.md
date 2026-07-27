@@ -4,6 +4,8 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-27
+
 ### Added
 - `phoenix2pytest` console CLI. Generate tests without the web UI: read flagged
   traces from a live Phoenix project (`--label MODE`) or a saved JSON file
