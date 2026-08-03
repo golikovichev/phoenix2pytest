@@ -177,6 +177,15 @@ trace.
 - **v1.2**: multi-turn trace handling.
 - **v1.3**: broader documentation and worked examples.
 
+### Where it goes next
+
+Direction, not a schedule. What gets built first depends on what real users report.
+
+- From bug to CI gate in one step: take a failing trace straight to a pytest file plus a ready commit or PR, so the regression lands in the repo without a copy-paste round trip.
+- Two-way loop with the official Phoenix pytest plugin: it runs pytest evals into Phoenix, this turns Phoenix failures back into pytest. Close that circle and the failure you saw in production sits next to the test that guards it.
+- Streaming trace reader: the current path loads matched traces in memory (see Limits). A streaming variant would let projects with very large failure sets generate without holding everything at once.
+- Cross-model regression config: generated tests assume the model the failure was seen on. An explicit target would let one failure guard a suite that runs against several models.
+
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the workflow.
